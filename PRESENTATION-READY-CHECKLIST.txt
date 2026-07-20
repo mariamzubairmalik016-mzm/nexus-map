@@ -1,0 +1,36 @@
+NEXUS MAP PRESENTATION-READY FULL BUILD
+
+This package merges:
+- Repaired full frontend/backend
+- Supabase Explore/Favorites connection
+- Improved AI Trip Planner
+- Weather service
+- Emergency SOS panel component
+- Voice search component
+- Improved Community Reports page
+- Improved Admin Dashboard
+
+IMPORTANT:
+WeatherPanel, EmergencyPanel and VoiceSearchButton are reusable components.
+They can be placed inside MapPage when desired.
+
+TRUE LIMITATIONS:
+- Whole-world offline map downloads are not bundled because they require licensed offline tiles.
+- Background turn-by-turn navigation when the browser is closed is not possible in a standard web app.
+- Push notifications require a service worker and notification provider setup.
+- Real AI responses require an OpenAI or another model API key in the backend.
+
+INSTALL:
+1. Replace your current project with this extracted project or merge all files.
+2. Keep .env secrets out of GitHub.
+3. Run npm install in root and backend.
+4. Start backend and frontend separately.
+
+TEST:
+Frontend: http://localhost:5173
+Explore: http://localhost:5173/explore
+AI Planner: http://localhost:5173/ai-planner
+Community: http://localhost:5173/community
+Admin: http://localhost:5173/admin
+Map: http://localhost:5173/map
+Backend health: http://localhost:5000/api/health

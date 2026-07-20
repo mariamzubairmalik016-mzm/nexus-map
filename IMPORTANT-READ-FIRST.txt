@@ -1,0 +1,33 @@
+THIS ZIP WAS REBUILT FROM THE PROJECT YOU UPLOADED.
+
+It already contains the active V2 MapPage with:
+- worldwide autocomplete
+- current GPS location
+- traffic-aware route alternatives
+- start navigation
+- automatic rerouting
+- turn-by-turn directions
+- TomTom map and traffic tiles
+- traffic incidents
+- community notes
+- Nexus AI route panel
+
+REPLACE YOUR EXISTING PROJECT COMPLETELY
+1. Stop frontend/backend terminals.
+2. Rename your current nexus-map folder to nexus-map-backup.
+3. Extract this ZIP and name the extracted folder nexus-map.
+4. Create frontend .env from .env.example.
+5. Create backend/.env from backend/.env.example.
+6. Put a NEW ROTATED TomTom key only in backend/.env.
+7. Run npm install in root.
+8. Run npm install inside backend.
+9. Run backend and frontend in separate terminals.
+
+Frontend: npm run dev
+Backend: cd backend && npm run dev
+
+Verify active file:
+src/Pages/Map/MapPage.tsx
+Search for: Navigate anywhere in the world
+
+Do not commit .env files or API keys to GitHub.

@@ -1,0 +1,20 @@
+1. Stop frontend with Ctrl+C.
+2. Extract this ZIP.
+3. Copy everything into:
+   C:\Users\Mariam Zubair Malik\OneDrive\Desktop\NEXUS MAP\nexus-map
+4. Replace files.
+5. Ensure src/main.tsx matches main.tsx.example.
+6. Run npm install and npm run dev.
+7. Open http://localhost:5173/offline-maps
+
+DEMO:
+- Keep internet ON.
+- Select Karachi.
+- Zoom 13 or 14, radius 1 or 2.
+- Download and wait for 100%.
+- Click Open Map.
+- Turn Wi-Fi OFF.
+- Refresh/revisit same map area.
+- Cached tiles should remain visible.
+
+This is for a small presentation/demo area only. Do not bulk-download countries from public OSM tile servers.

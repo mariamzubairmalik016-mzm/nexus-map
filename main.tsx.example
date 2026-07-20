@@ -1,0 +1,20 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { Toaster } from "react-hot-toast";
+import App from "./App";
+import { AuthProvider } from "./context/AuthContext";
+import { registerOfflineWorker } from "./services/registerOfflineWorker";
+import "leaflet/dist/leaflet.css";
+import "./index.css";
+
+const rootElement = document.getElementById("root");
+if (!rootElement) throw new Error("Root element was not found.");
+void registerOfflineWorker();
+createRoot(rootElement).render(
+  <StrictMode>
+    <AuthProvider>
+      <App />
+      <Toaster position="top-right" />
+    </AuthProvider>
+  </StrictMode>,
+);

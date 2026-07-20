@@ -1,0 +1,350 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  background: #020617;
+  color: #f8fafc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --nexus-cyan: #22d3ee;
+  --nexus-blue: #3b82f6;
+  --nexus-purple: #a855f7;
+  --nexus-bg: #020617;
+  --nexus-panel: rgba(15, 23, 42, 0.66);
+  --nexus-border: rgba(255, 255, 255, 0.09);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--nexus-bg);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 12% 12%, rgba(34, 211, 238, 0.09), transparent 26rem),
+    radial-gradient(circle at 84% 18%, rgba(168, 85, 247, 0.09), transparent 28rem),
+    radial-gradient(circle at 50% 88%, rgba(59, 130, 246, 0.07), transparent 32rem),
+    #020617;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(2, 6, 23, 0.06), rgba(2, 6, 23, 0.88));
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+button:not(:disabled):active,
+a:active {
+  transform: translateY(1px) scale(0.995);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.75);
+  outline-offset: 3px;
+}
+
+input,
+select,
+textarea {
+  color: #f8fafc;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+}
+
+select option {
+  background: #07101f;
+  color: #f8fafc;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.28);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid #020617;
+  border-radius: 999px;
+  background: linear-gradient(#164e63, #4c1d95);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(#0891b2, #7e22ce);
+}
+
+.leaflet-container {
+  z-index: 0;
+  background: #0f172a;
+  font-family: inherit;
+}
+
+.leaflet-control-zoom a,
+.leaflet-control-layers {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(2, 6, 23, 0.92) !important;
+  color: white !important;
+  backdrop-filter: blur(18px);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(2, 6, 23, 0.96);
+  color: white;
+}
+
+.nexus-page {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 80px);
+}
+
+.nexus-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.055), transparent 26rem),
+    radial-gradient(circle at 90% 30%, rgba(168, 85, 247, 0.055), transparent 30rem);
+}
+
+.nexus-container {
+  width: min(100% - 2rem, 88rem);
+  margin-inline: auto;
+}
+
+.nexus-glass {
+  border: 1px solid var(--nexus-border);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    rgba(2, 6, 23, 0.66);
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px);
+}
+
+.nexus-card {
+  border: 1px solid var(--nexus-border);
+  border-radius: 1.65rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(15, 23, 42, 0.58);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(22px);
+}
+
+.nexus-card:hover {
+  border-color: rgba(34, 211, 238, 0.2);
+  box-shadow:
+    0 24px 68px rgba(0, 0, 0, 0.29),
+    0 0 0 1px rgba(34, 211, 238, 0.035);
+}
+
+.nexus-gradient-text {
+  background: linear-gradient(90deg, #67e8f9 0%, #60a5fa 48%, #c084fc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nexus-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: #22d3ee;
+}
+
+.nexus-button-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  border-radius: 1rem;
+  padding: 0.9rem 1.25rem;
+  font-weight: 800;
+  color: #020617;
+  background: linear-gradient(90deg, #22d3ee, #3b82f6 50%, #a855f7);
+  box-shadow:
+    0 14px 34px rgba(59, 130, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.nexus-button-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 18px 44px rgba(59, 130, 246, 0.3),
+    0 0 28px rgba(34, 211, 238, 0.12);
+}
+
+.nexus-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 0.9rem 1.25rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(16px);
+}
+
+.nexus-button-secondary:hover {
+  border-color: rgba(34, 211, 238, 0.22);
+  color: white;
+  background: rgba(34, 211, 238, 0.07);
+}
+
+.nexus-input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 0.95rem 1rem;
+  color: white;
+  background: rgba(2, 6, 23, 0.62);
+  backdrop-filter: blur(14px);
+}
+
+.nexus-input:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.nexus-input:focus {
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.07);
+}
+
+.nexus-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.11), transparent);
+}
+
+.nexus-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.nexus-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-120%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.065),
+    transparent
+  );
+  animation: nexus-shimmer 2.4s infinite;
+}
+
+@keyframes nexus-shimmer {
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes nexus-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.nexus-float {
+  animation: nexus-float 5s ease-in-out infinite;
+}
+
+@media (max-width: 767px) {
+  .nexus-container {
+    width: min(100% - 1rem, 88rem);
+  }
+
+  .leaflet-container {
+    min-height: 520px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

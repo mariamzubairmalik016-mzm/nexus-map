@@ -1,0 +1,70 @@
+NEXUS MAP AI TRIP PLANNER FIX
+
+This fixes the problem where every day showed the same sentence.
+
+Paste the extracted ZIP contents directly into:
+
+C:\Users\Mariam Zubair Malik\OneDrive\Desktop\NEXUS MAP\nexus-map
+
+Choose:
+Replace the files in the destination
+
+FILES REPLACED
+
+Frontend:
+src\Pages\AIPlanner\AIPlanner.tsx
+src\services\tripPlannerService.ts
+src\types\tripPlanner.ts
+
+Backend:
+backend\src\routes\tripPlanner.routes.ts
+
+INSTALL
+
+Frontend root:
+npm install
+
+Backend:
+cd backend
+npm install
+
+RUN
+
+Terminal 1:
+cd backend
+npm run dev
+
+Terminal 2:
+cd ..
+npm run dev
+
+OPEN
+
+http://localhost:5173/ai-planner
+
+WHAT IS FIXED
+
+- Every day now has different activities
+- First day has arrival/check-in
+- Middle days have different attractions, food, nature and shopping
+- Last day has final visit, shopping and departure
+- Daily cost calculation
+- Total estimated cost
+- Hotel recommendation
+- Food recommendation
+- Packing list
+- Safety tips
+- Trip type
+- Transport selection
+- Currency selection
+- Download itinerary as a text file
+
+DESTINATIONS WITH SPECIAL CONTENT
+
+- Hunza
+- Lahore
+- Karachi
+- Makkah
+- Dubai
+
+Any other destination receives a varied generic itinerary instead of repeated text.
