@@ -7,18 +7,23 @@ import { useAuth } from "../../hooks/useAuth";
 const SignupForm = () => {
   const { signUp } = useAuth();
   const navigate = useNavigate();
-  const [name, setName] = useState("Mariam Zubair Malik");
-  const [email, setEmail] = useState("mariam@example.com");
-  const [password, setPassword] = useState("12345678");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
       setSubmitting(true);
-      await signUp(name.trim(), email.trim(), password);
-      toast.success("Account created.");
-      navigate("/dashboard");
+      const { needsVerification } = await signUp(name.trim(), email.trim(), password);
+      if (needsVerification) {
+        toast.success("Account created. Check your email to verify, then sign in.");
+        navigate("/login");
+      } else {
+        toast.success("Account created.");
+        navigate("/dashboard");
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to sign up.");
     } finally { setSubmitting(false); }

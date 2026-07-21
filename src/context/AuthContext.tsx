@@ -6,82 +6,85 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { User } from "@supabase/supabase-js";
+import type { AuthError, User } from "@supabase/supabase-js";
 
-import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 import type { Profile } from "../types";
 
-type DemoUser = {
-  id: string;
-  email: string;
-};
-
-type AuthUser = User | DemoUser;
-
 type AuthContextValue = {
-  user: AuthUser | null;
+  user: User | null;
   profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (fullName: string, email: string, password: string) => Promise<void>;
+  signUp: (fullName: string, email: string, password: string) => Promise<{ needsVerification: boolean }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const DEMO_KEY = "nexus_demo_user";
-const PROFILE_KEY = "nexus_demo_profile";
+// Real Supabase auth only — no demo/mock fallback.
+const requireClient = () => {
+  if (!supabase) {
+    throw new Error(
+      "Authentication is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.",
+    );
+  }
+  return supabase;
+};
 
-const createDemoProfile = (id: string, email: string, fullName?: string): Profile => ({
-  id,
-  full_name: fullName || email.split("@")[0],
-  email,
-  avatar_url: null,
-  phone: null,
-  country: "Pakistan",
-  city: "Karachi",
-  bio: "Exploring the world with Nexus Map.",
-  role: email.toLowerCase().includes("admin") ? "admin" : "user",
-});
+// Map raw Supabase auth errors to friendly, user-facing messages.
+const friendly = (error: AuthError): Error => {
+  const message = error.message.toLowerCase();
+  if (message.includes("invalid login")) return new Error("Invalid email or password.");
+  if (message.includes("already registered") || message.includes("already been registered")) {
+    return new Error("An account with this email already exists. Try signing in.");
+  }
+  if (message.includes("email not confirmed")) {
+    return new Error("Please verify your email before signing in — check your inbox.");
+  }
+  if (message.includes("password")) return new Error(error.message);
+  return new Error(error.message || "Authentication failed. Please try again.");
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = useCallback(async (userId: string, email: string) => {
-    if (supabase) {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
+  const loadProfile = useCallback(async (authUser: User) => {
+    const client = supabase;
+    if (!client) return;
 
-      if (data) {
-        setProfile(data as Profile);
-        return;
-      }
+    const { data } = await client
+      .from("profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    if (data) {
+      setProfile(data as Profile);
+      return;
     }
 
-    const stored = localStorage.getItem(PROFILE_KEY);
-    if (stored) {
-      setProfile(JSON.parse(stored) as Profile);
-    } else {
-      const fallback = createDemoProfile(userId, email);
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(fallback));
-      setProfile(fallback);
-    }
+    // The DB trigger normally creates the row; if it hasn't yet, derive a
+    // profile from the authenticated user's metadata (role always defaults to
+    // "user" — admin is granted in the database, never inferred client-side).
+    setProfile({
+      id: authUser.id,
+      full_name: (authUser.user_metadata?.full_name as string | undefined) ?? null,
+      email: authUser.email ?? null,
+      avatar_url: null,
+      phone: null,
+      country: null,
+      city: null,
+      bio: null,
+      role: "user",
+    });
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      const stored = localStorage.getItem(DEMO_KEY);
-      if (stored) {
-        const demoUser = JSON.parse(stored) as DemoUser;
-        setUser(demoUser);
-        void loadProfile(demoUser.id, demoUser.email);
-      }
+    if (!supabase) {
       setLoading(false);
       return;
     }
@@ -89,9 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void supabase.auth.getSession().then(async ({ data }) => {
       const currentUser = data.session?.user ?? null;
       setUser(currentUser);
-      if (currentUser?.email) {
-        await loadProfile(currentUser.id, currentUser.email);
-      }
+      if (currentUser) await loadProfile(currentUser);
       setLoading(false);
     });
 
@@ -100,8 +101,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      if (currentUser?.email) {
-        void loadProfile(currentUser.id, currentUser.email);
+      if (currentUser) {
+        void loadProfile(currentUser);
       } else {
         setProfile(null);
       }
@@ -111,68 +112,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [loadProfile]);
 
   const signIn = async (email: string, password: string) => {
-    if (supabase) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      return;
-    }
-
-    if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-    const demoUser = { id: crypto.randomUUID(), email };
-    localStorage.setItem(DEMO_KEY, JSON.stringify(demoUser));
-    const demoProfile = createDemoProfile(demoUser.id, email);
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(demoProfile));
-    setUser(demoUser);
-    setProfile(demoProfile);
+    const client = requireClient();
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw friendly(error);
   };
 
   const signUp = async (fullName: string, email: string, password: string) => {
-    if (supabase) {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      });
-      if (error) throw error;
-      return;
-    }
-
-    const demoUser = { id: crypto.randomUUID(), email };
-    const demoProfile = createDemoProfile(demoUser.id, email, fullName);
-    localStorage.setItem(DEMO_KEY, JSON.stringify(demoUser));
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(demoProfile));
-    setUser(demoUser);
-    setProfile(demoProfile);
+    const client = requireClient();
+    const { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
+    });
+    if (error) throw friendly(error);
+    // When email confirmation is enabled, no session is returned until verified.
+    return { needsVerification: !data.session };
   };
 
   const signOut = async () => {
-    if (supabase) {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    }
-    localStorage.removeItem(DEMO_KEY);
+    const client = requireClient();
+    const { error } = await client.auth.signOut();
+    if (error) throw error;
     setUser(null);
     setProfile(null);
   };
 
   const updateProfile = async (updates: Partial<Profile>) => {
+    const client = requireClient();
     if (!user) throw new Error("You must be logged in.");
 
-    if (supabase) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .update(updates)
-        .eq("id", user.id)
-        .select()
-        .single();
-      if (error) throw error;
-      setProfile(data as Profile);
-      return;
-    }
-
-    const updated = { ...(profile ?? createDemoProfile(user.id, user.email ?? "")), ...updates };
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
-    setProfile(updated);
+    const { data, error } = await client
+      .from("profiles")
+      .upsert({ id: user.id, ...updates })
+      .select()
+      .single();
+    if (error) throw error;
+    setProfile(data as Profile);
   };
 
   const value = useMemo(

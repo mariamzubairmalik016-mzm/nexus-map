@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { notFound } from "./middleware/notFound.js";
 import { apiRouter } from "./routes/index.js";
+import { healthRouter } from "./routes/health.routes.js";
 
 export const app = express();
 
@@ -25,10 +26,12 @@ app.get("/", (_request, response) => {
   response.json({
     success: true,
     message: "Nexus Map Backend API",
-    docs: "/api/health",
+    docs: "/health",
   });
 });
 
+// Health check available at both the root and the API namespace.
+app.use("/health", healthRouter);
 app.use("/api", apiRouter);
 app.use(notFound);
 app.use(errorHandler);

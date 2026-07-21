@@ -9,26 +9,19 @@ type ApiResponse<T> = {
   message?: string;
 };
 
-// Forward the real Supabase session token when signed in (the backend validates
-// it when Supabase is configured); fall back to demo headers otherwise so the
-// app still works against a backend running in demo mode.
+// Forward the real Supabase session token when signed in. Unauthenticated
+// requests send no auth header (protected backend routes will correctly 401).
 const authHeaders = async (): Promise<Record<string, string>> => {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (supabase) {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-        return headers;
-      }
+      if (token) headers.Authorization = `Bearer ${token}`;
     } catch {
-      // fall through to demo headers
+      // no session — send unauthenticated
     }
   }
-  headers["x-demo-user-id"] = "demo-user";
-  headers["x-demo-user-email"] = "mariam@example.com";
-  headers["x-demo-user-role"] = "user";
   return headers;
 };
 
