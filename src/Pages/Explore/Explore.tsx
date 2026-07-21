@@ -11,6 +11,7 @@ import toast from "react-hot-toast";
 
 import { geoService } from "../../services/geoService";
 import { favoritesService } from "../../services/favoritesService";
+import { offlineDb } from "../../services/offlineDb";
 import type { GeoCity } from "../../types/geo";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -92,6 +93,23 @@ const Explore = () => {
       .catch(() => setFavoriteIds(new Set()));
   }, [user]);
 
+  // Keep an offline cache of favorited destinations so the Favorites page works
+  // without a connection.
+  useEffect(() => {
+    if (!cities.length) return;
+    const favs = cities
+      .filter((city) => favoriteIds.has(city.id))
+      .map((city) => ({
+        id: city.id,
+        name: city.name,
+        country: city.country_iso2,
+        category: city.city_type,
+        imageUrl: city.image_url ?? undefined,
+        savedAt: new Date().toISOString(),
+      }));
+    if (favs.length) void offlineDb.saveFavorites(favs);
+  }, [cities, favoriteIds]);
+
   const countries = useMemo(
     () =>
       Array.from(new Set(cities.map((city) => city.country_iso2))).sort(),
@@ -110,6 +128,7 @@ const Explore = () => {
 
       if (currentlySaved) {
         await favoritesService.remove(city.id);
+        await offlineDb.deleteFavorite(city.id);
         setFavoriteIds((current) => {
           const next = new Set(current);
           next.delete(city.id);
@@ -118,6 +137,14 @@ const Explore = () => {
         toast.success("Removed from favorites.");
       } else {
         await favoritesService.add(city.id);
+        await offlineDb.saveFavorite({
+          id: city.id,
+          name: city.name,
+          country: city.country_iso2,
+          category: city.city_type,
+          imageUrl: city.image_url ?? undefined,
+          savedAt: new Date().toISOString(),
+        });
         setFavoriteIds((current) => new Set(current).add(city.id));
         toast.success("Added to favorites.");
       }

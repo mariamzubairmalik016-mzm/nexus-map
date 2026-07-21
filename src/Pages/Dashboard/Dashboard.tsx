@@ -1,9 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Bot, Compass, Download, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import { Bell, Bot, Compass, Download, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, UserRound, type LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { useGeolocation } from "../../hooks/useGeolocation";
+import { offlineDb } from "../../services/offlineDb";
+import { offlineTileService } from "../../services/offlineTileService";
+import { getWeather, type WeatherData } from "../../services/weatherService";
+import WeatherPanel from "../../components/map/WeatherPanel";
 
 const quick = [
   ["/map", Map, "Open World Map", "Explore locations and plan live routes."],
@@ -19,6 +23,38 @@ const Dashboard = () => {
   const geo = useGeolocation();
   const displayName = useMemo(() => profile?.full_name || user?.email?.split("@")[0] || "Nexus Explorer", [profile, user]);
 
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [counts, setCounts] = useState({ saved: 0, offline: 0, routes: 0, ai: 0 });
+
+  useEffect(() => {
+    void (async () => {
+      const [favs, history] = await Promise.all([
+        offlineDb.getFavorites().catch(() => []),
+        offlineDb.getHistory().catch(() => []),
+      ]);
+      setCounts({
+        saved: favs.length,
+        offline: offlineTileService.getAreas().length,
+        routes: history.length,
+        ai: 0,
+      });
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!geo.coordinates) return;
+    void getWeather(geo.coordinates.latitude, geo.coordinates.longitude)
+      .then(setWeather)
+      .catch(() => setWeather(null));
+  }, [geo.coordinates]);
+
+  const statCards: Array<{ Icon: LucideIcon; label: string; value: number }> = [
+    { Icon: Heart, label: "Saved Places", value: counts.saved },
+    { Icon: Download, label: "Offline Maps", value: counts.offline },
+    { Icon: Navigation, label: "Saved Routes", value: counts.routes },
+    { Icon: Bot, label: "AI Searches", value: counts.ai },
+  ];
+
   return (
     <section className="min-h-[calc(100vh-80px)] overflow-x-hidden px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
@@ -30,8 +66,8 @@ const Dashboard = () => {
         </motion.div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[[Heart, "Saved Places"], [Download, "Offline Maps"], [Navigation, "Saved Routes"], [Bot, "AI Searches"]].map(([Icon, label]) => (
-            <article key={String(label)} className="min-h-40 rounded-[26px] border border-white/10 bg-white/[.04] p-5"><Icon className="text-cyan-400" /><p className="mt-6 text-3xl font-bold">0</p><p className="mt-2 text-sm text-slate-400">{String(label)}</p></article>
+          {statCards.map(({ Icon, label, value }) => (
+            <article key={label} className="min-h-40 rounded-[26px] border border-white/10 bg-white/[.04] p-5"><Icon className="text-cyan-400" /><p className="mt-6 text-3xl font-bold">{value}</p><p className="mt-2 text-sm text-slate-400">{label}</p></article>
           ))}
         </div>
 
@@ -39,6 +75,7 @@ const Dashboard = () => {
           <article className="min-h-[400px] rounded-[30px] border border-white/10 bg-white/[.04] p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs uppercase tracking-[.22em] text-cyan-400">Live location</p><h2 className="mt-1 text-2xl font-bold">GPS Navigation</h2></div><button onClick={geo.getCurrentLocation} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950"><LocateFixed size={18} />{geo.loading ? "Finding..." : "Get Current Location"}</button></div>
             {geo.coordinates ? <div className="mt-7 grid gap-4 sm:grid-cols-3">{[["Latitude", geo.coordinates.latitude], ["Longitude", geo.coordinates.longitude], ["Accuracy", geo.coordinates.accuracy ?? 0]].map(([label, value]) => <div key={String(label)} className="rounded-2xl bg-slate-950/60 p-5"><p className="text-xs text-slate-500">{String(label)}</p><p className="mt-2 font-semibold">{Number(value).toFixed(String(label) === "Accuracy" ? 0 : 6)}</p></div>)}</div> : <div className="mt-7 flex min-h-52 items-center justify-center rounded-[24px] border border-dashed border-white/10"><div className="text-center"><MapPin className="mx-auto text-slate-600" size={40} /><p className="mt-4 font-semibold">Location not detected yet</p></div></div>}
+            {weather && <div className="mt-6"><WeatherPanel weather={weather} /></div>}
           </article>
 
           <article className="min-h-[400px] rounded-[30px] border border-white/10 bg-white/[.04] p-6">
