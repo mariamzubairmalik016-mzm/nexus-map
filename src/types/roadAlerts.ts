@@ -35,6 +35,9 @@ export type RoadAlert = {
   severity: AlertSeverity;
   status: AlertStatus;
   source: AlertSource;
+  // When a cached copy is shown offline, source becomes "cached" and this keeps
+  // the real origin (e.g. "community", "api") for the "Cached • Originally …" badge.
+  originalSource?: AlertSource;
   reporterId?: string;
   verificationCount: number;
   reportCount: number;
@@ -77,9 +80,34 @@ export const SEVERITY_META: Record<AlertSeverity, { label: string; chip: string;
 
 // Human-facing label for the data source (never claim simulated data is live).
 export const SOURCE_LABELS: Record<AlertSource, string> = {
-  api: "Live",
-  admin: "Verified",
-  community: "Community Reported",
+  api: "Live API",
+  admin: "Admin",
+  community: "Community",
   cached: "Cached",
-  demo: "Demo Mode",
+  demo: "Demo",
+};
+
+// Badge styling per source — Demo is a neutral gray so it never looks like a live provider.
+export const SOURCE_BADGE: Record<AlertSource, string> = {
+  api: "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
+  community: "border-violet-400/30 bg-violet-400/10 text-violet-300",
+  admin: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+  cached: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  demo: "border-slate-500/30 bg-slate-500/10 text-slate-400",
+};
+
+export type SourcesMeta = {
+  api: { status: "connected" | "not-queried" | "error" | "not-configured"; count: number };
+  community: { count: number };
+  admin: { count: number };
+  cached: { count: number };
+  demo: { enabled: boolean; count: number };
+};
+
+export const EMPTY_SOURCES_META: SourcesMeta = {
+  api: { status: "not-queried", count: 0 },
+  community: { count: 0 },
+  admin: { count: 0 },
+  cached: { count: 0 },
+  demo: { enabled: false, count: 0 },
 };

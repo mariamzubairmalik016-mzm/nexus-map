@@ -10,9 +10,6 @@ import type {
   TripPlan,
 } from "../types/models.js";
 
-const now = new Date();
-const hoursFromNow = (hours: number) => new Date(now.getTime() + hours * 3600_000).toISOString();
-
 export const memoryStore = {
   places: [
     {
@@ -62,45 +59,7 @@ export const memoryStore = {
   offlineJobs: [] as OfflineMapJob[],
   tripPlans: [] as TripPlan[],
   auditLog: [] as AuditEntry[],
-  roadAlerts: [
-    {
-      id: "alert-demo-1",
-      type: "construction",
-      title: "Road construction near Gulshan",
-      description: "Lane closure for repair work. Expect delays; drive carefully.",
-      latitude: 24.9008,
-      longitude: 67.1681,
-      location: "Gulshan-e-Iqbal, Karachi",
-      severity: "medium",
-      status: "active",
-      source: "demo",
-      verificationCount: 8,
-      reportCount: 1,
-      estimatedDelayMinutes: 12,
-      isVerified: true,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-      expiresAt: hoursFromNow(10),
-    },
-    {
-      id: "alert-demo-2",
-      type: "flooded_road",
-      title: "Water logging after rain",
-      description: "Standing water reported on the underpass. Use an alternate route.",
-      latitude: 24.8607,
-      longitude: 67.0011,
-      location: "II Chundrigar Road, Karachi",
-      severity: "high",
-      status: "active",
-      source: "demo",
-      verificationCount: 15,
-      reportCount: 2,
-      estimatedDelayMinutes: 25,
-      alternateRoute: "Via Shahrah-e-Faisal",
-      isVerified: true,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-      expiresAt: hoursFromNow(6),
-    },
-  ] as RoadAlert[],
+  // Real community/admin/api alerts only. Demo alerts live in data/demoAlerts.ts
+  // and are never mixed in here.
+  roadAlerts: [] as RoadAlert[],
 };
