@@ -32,11 +32,18 @@ export const roadAlertsService = {
 
     try {
       const alerts = await api.get<RoadAlert[]>(`/road-alerts${qs}`);
-      await offlineDb.saveRoadAlerts(alerts);
+      // Cache is best-effort — never let a cache-write failure hide live data.
+      void offlineDb.saveRoadAlerts(alerts).catch(() => {});
       return { alerts, live: true };
     } catch {
-      const cached = (await offlineDb.getRoadAlerts()).map((a) => ({ ...a, source: "cached" as const }));
-      return { alerts: cached, live: false };
+      // Offline / server down: fall back to the cache. If IndexedDB itself is
+      // unavailable, return an empty list rather than crashing the page.
+      try {
+        const cached = (await offlineDb.getRoadAlerts()).map((a) => ({ ...a, source: "cached" as const }));
+        return { alerts: cached, live: false };
+      } catch {
+        return { alerts: [], live: false };
+      }
     }
   },
 
