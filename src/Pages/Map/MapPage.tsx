@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import SearchAutocomplete from "../../components/map/SearchAutocomplete";
 import NavigationMap from "../../components/map/NavigationMap";
 import { navigationApi } from "../../services/navigationApi";
+import { offlineDb } from "../../services/offlineDb";
 import { useLiveNavigation } from "../../hooks/useLiveNavigation";
 import type {
   CommunityNote,
@@ -118,6 +119,20 @@ const MapPage = () => {
 
       setRoutes(result);
       setSelectedRoute(result[0] ?? null);
+
+      // Record the trip in offline history so it survives reloads / offline.
+      const best = result[0];
+      if (best) {
+        void offlineDb.addHistory({
+          id: crypto.randomUUID(),
+          startName: startText || "Start",
+          destinationName: destinationText || "Destination",
+          distanceKm: Math.round((best.summary.lengthMeters / 1000) * 10) / 10,
+          durationMinutes: Math.round(best.summary.travelTimeSeconds / 60),
+          createdAt: new Date().toISOString(),
+        });
+      }
+
       toast.success("Traffic-aware routes are ready.");
     } catch (error) {
       toast.error(

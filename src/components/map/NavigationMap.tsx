@@ -139,6 +139,15 @@ const NavigationMap = ({
     >
       <ZoomControl position="bottomright" />
 
+      {/* OpenStreetMap base layer. The service worker caches these tiles when an
+          area is downloaded, so the map still renders offline. Online, the
+          opaque TomTom layer below renders on top; offline its tiles fail and
+          this cached base shows through. */}
+      <TileLayer
+        attribution="&copy; OpenStreetMap contributors"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+
       <TileLayer
         attribution="&copy; TomTom"
         url={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/navigation/map-tile/{z}/{x}/{y}`}

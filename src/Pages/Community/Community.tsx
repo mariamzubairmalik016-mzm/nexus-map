@@ -21,6 +21,18 @@ type Report = {
   createdAt: string;
 };
 
+const CACHE_KEY = "nexus-community-reports";
+
+const readCache = (): Report[] => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+};
+
+const writeCache = (reports: Report[]) => localStorage.setItem(CACHE_KEY, JSON.stringify(reports));
+
 const Community = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,28 +46,57 @@ const Community = () => {
   const load = () =>
     api
       .get<Report[]>("/reports")
-      .then(setReports)
+      .then((data) => {
+        setReports(data);
+        writeCache(data);
+      })
+      .catch(() => {
+        // Offline / server down — fall back to the last cached reports.
+        setReports(readCache());
+      })
       .finally(() => setLoading(false));
 
   useEffect(() => {
     void load();
   }, []);
 
+  const resetForm = () =>
+    setForm({ title: "", description: "", location: "", category: "traffic" });
+
   const submit = async () => {
+    const draft = { ...form };
     try {
-      const created = await api.post<Report>("/reports", form);
-      setReports((current) => [created, ...current]);
-      setForm({
-        title: "",
-        description: "",
-        location: "",
-        category: "traffic",
+      const created = await api.post<Report>("/reports", draft);
+      setReports((current) => {
+        const next = [created, ...current];
+        writeCache(next);
+        return next;
       });
+      resetForm();
       toast.success("Community report submitted.");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Unable to submit report.",
-      );
+      const offline =
+        !navigator.onLine ||
+        (error instanceof Error && /offline|queued/i.test(error.message));
+      if (offline) {
+        // The write was queued for background sync — show it optimistically.
+        const optimistic: Report = {
+          id: crypto.randomUUID(),
+          ...draft,
+          status: "pending sync",
+          helpfulCount: 0,
+          createdAt: new Date().toISOString(),
+        };
+        setReports((current) => {
+          const next = [optimistic, ...current];
+          writeCache(next);
+          return next;
+        });
+        resetForm();
+        toast.success("Saved offline — it will sync when you're back online.");
+      } else {
+        toast.error(error instanceof Error ? error.message : "Unable to submit report.");
+      }
     }
   };
 
