@@ -78,3 +78,62 @@ export type TripPlan = {
   }>;
   createdAt: string;
 };
+
+export const ROAD_ALERT_TYPES = [
+  "accident",
+  "road_closed",
+  "construction",
+  "damaged_road",
+  "potholes",
+  "heavy_traffic",
+  "flooded_road",
+  "water_logging",
+  "fog",
+  "landslide",
+  "bridge_closed",
+  "obstruction",
+  "police_checkpoint",
+  "protest",
+  "dangerous_area",
+  "transport_disruption",
+  "no_parking",
+  "other",
+] as const;
+
+export type RoadAlertType = (typeof ROAD_ALERT_TYPES)[number];
+export type AlertSeverity = "low" | "medium" | "high" | "critical";
+export type AlertStatus = "active" | "monitoring" | "resolved";
+export type AlertSource = "api" | "admin" | "community" | "cached" | "demo";
+
+export type RoadAlert = {
+  id: string;
+  type: RoadAlertType;
+  title: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+  location: string;
+  severity: AlertSeverity;
+  status: AlertStatus;
+  source: AlertSource;
+  reporterId?: string;
+  verificationCount: number;
+  reportCount: number;
+  imageUrl?: string;
+  estimatedDelayMinutes?: number;
+  alternateRoute?: string;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+};
+
+export type AuditEntry = {
+  id: string;
+  adminId?: string;
+  action: string;
+  entity: string;
+  entityId?: string;
+  notes?: string;
+  createdAt: string;
+};

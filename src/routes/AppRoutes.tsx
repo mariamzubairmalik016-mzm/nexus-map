@@ -11,6 +11,7 @@ const Home = lazy(() => import("../Pages/Home/Home"));
 const Explore = lazy(() => import("../Pages/Explore/Explore"));
 const MapPage = lazy(() => import("../Pages/Map/MapPage"));
 const Community = lazy(() => import("../Pages/Community/Community"));
+const RoadAlerts = lazy(() => import("../Pages/RoadAlerts/RoadAlerts"));
 const Login = lazy(() => import("../Pages/Auth/Login"));
 const Signup = lazy(() => import("../Pages/Auth/Signup"));
 const ForgotPassword = lazy(() => import("../Pages/Auth/ForgotPassword"));
@@ -34,6 +35,7 @@ const AppRoutes = () => (
         <Route path="/explore" element={<Explore />} />
         <Route path="/map" element={<MapPage />} />
         <Route path="/community" element={<Community />} />
+        <Route path="/road-alerts" element={<RoadAlerts />} />
 
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />

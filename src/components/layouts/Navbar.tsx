@@ -25,6 +25,7 @@ const navigationLinks = [
   { label: "Home", path: "/" },
   { label: "Explore", path: "/explore" },
   { label: "Map", path: "/map" },
+  { label: "Alerts", path: "/road-alerts" },
   { label: "Community", path: "/community" },
 ];
 

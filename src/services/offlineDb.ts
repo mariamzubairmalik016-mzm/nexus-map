@@ -1,4 +1,5 @@
 import type { OfflinePack, OfflinePlace } from "../types/offline";
+import type { RoadAlert } from "../types/roadAlerts";
 
 // A single request that failed while offline and must be replayed on reconnect.
 export type QueuedRequest = {
@@ -16,12 +17,13 @@ export type OfflineFavorite = { id: string; name: string; city?: string; country
 export type OfflineHistoryItem = { id: string; startName: string; destinationName: string; distanceKm?: number; durationMinutes?: number; createdAt: string };
 
 const DB = "nexus-map-offline";
-const VERSION = 2;
+const VERSION = 3;
 const PACKS = "packs";
 const PLACES = "places";
 const FAVORITES = "favorites";
 const HISTORY = "history";
 const QUEUE = "syncQueue";
+const ROAD_ALERTS = "roadAlerts";
 
 const openDb = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
@@ -36,6 +38,7 @@ const openDb = () =>
       if (!db.objectStoreNames.contains(FAVORITES)) db.createObjectStore(FAVORITES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(HISTORY)) db.createObjectStore(HISTORY, { keyPath: "id" });
       if (!db.objectStoreNames.contains(QUEUE)) db.createObjectStore(QUEUE, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(ROAD_ALERTS)) db.createObjectStore(ROAD_ALERTS, { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -127,4 +130,11 @@ export const offlineDb = {
   getQueue: () => getAll<QueuedRequest>(QUEUE),
   dequeue: (id: string) => remove(QUEUE, id),
   clearQueue: () => clear(QUEUE),
+
+  // --- Offline road-alerts cache ---
+  getRoadAlerts: () => getAll<RoadAlert>(ROAD_ALERTS),
+  saveRoadAlerts: async (items: RoadAlert[]) => {
+    await clear(ROAD_ALERTS);
+    await putMany(ROAD_ALERTS, items);
+  },
 };
