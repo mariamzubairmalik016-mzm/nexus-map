@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Bot, Compass, Download, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, Bot, Compass, Download, HardDrive, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { useGeolocation } from "../../hooks/useGeolocation";
+import { useInternetStatus } from "../../hooks/useInternetStatus";
 import { offlineDb } from "../../services/offlineDb";
 import { offlineTileService } from "../../services/offlineTileService";
 import { getWeather, type WeatherData } from "../../services/weatherService";
+import { getStorageEstimate, formatBytes, type StorageEstimateInfo } from "../../services/storageManager";
 import WeatherPanel from "../../components/map/WeatherPanel";
 
 const quick = [
@@ -23,14 +25,17 @@ const Dashboard = () => {
   const geo = useGeolocation();
   const displayName = useMemo(() => profile?.full_name || user?.email?.split("@")[0] || "Nexus Explorer", [profile, user]);
 
+  const online = useInternetStatus();
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [counts, setCounts] = useState({ saved: 0, offline: 0, routes: 0, ai: 0 });
+  const [storage, setStorage] = useState<StorageEstimateInfo | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const [favs, history] = await Promise.all([
+      const [favs, history, estimate] = await Promise.all([
         offlineDb.getFavorites().catch(() => []),
         offlineDb.getHistory().catch(() => []),
+        getStorageEstimate().catch(() => null),
       ]);
       setCounts({
         saved: favs.length,
@@ -38,6 +43,7 @@ const Dashboard = () => {
         routes: history.length,
         ai: 0,
       });
+      setStorage(estimate);
     })();
   }, []);
 
@@ -69,6 +75,39 @@ const Dashboard = () => {
           {statCards.map(({ Icon, label, value }) => (
             <article key={label} className="min-h-40 rounded-[26px] border border-white/10 bg-white/[.04] p-5"><Icon className="text-cyan-400" /><p className="mt-6 text-3xl font-bold">{value}</p><p className="mt-2 text-sm text-slate-400">{label}</p></article>
           ))}
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="nexus-card flex items-center justify-between p-5">
+            <div className="flex items-center gap-3">
+              <div className={`rounded-2xl p-3 ${online ? "bg-emerald-400/10 text-emerald-300" : "bg-amber-400/10 text-amber-300"}`}>
+                {online ? <Wifi size={20} /> : <WifiOff size={20} />}
+              </div>
+              <div>
+                <p className="text-sm text-slate-400">Connectivity</p>
+                <p className="font-semibold">{online ? "Online" : "Offline — cached data active"}</p>
+              </div>
+            </div>
+            <span className={`h-2.5 w-2.5 rounded-full ${online ? "bg-emerald-400" : "bg-amber-400"}`} />
+          </div>
+
+          <div className="nexus-card p-5">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-cyan-400/10 p-3 text-cyan-300"><HardDrive size={20} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-slate-400">Offline storage</p>
+                <p className="font-semibold">
+                  {storage?.supported ? `${formatBytes(storage.usageBytes)} used` : "Not available"}
+                  {storage?.supported && <span className="text-slate-500"> · {formatBytes(storage.quotaBytes)}</span>}
+                </p>
+              </div>
+            </div>
+            {storage?.supported && (
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" style={{ width: `${storage.percent}%` }} />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_.85fr]">

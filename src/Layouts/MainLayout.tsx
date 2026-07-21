@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Navbar from "../components/layouts/Navbar";
 import Footer from "../components/layouts/Footer";
 import AIChatbot from "../components/ai/AIChatbot";
+import PageTransition from "../components/ui/PageTransition";
 
 const MainLayout = () => {
   const location = useLocation();
@@ -23,7 +24,9 @@ const MainLayout = () => {
       <Navbar />
 
       <main className="relative z-10 min-h-[calc(100vh-80px)] pt-20">
-        <Outlet />
+        <PageTransition>
+          <Outlet />
+        </PageTransition>
       </main>
 
       <div className="relative z-10">
