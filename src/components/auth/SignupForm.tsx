@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { LoaderCircle, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { LoaderCircle, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
@@ -26,16 +26,18 @@ const SignupForm = () => {
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      {[
-        ["Full name", name, setName, UserRound, "text"],
-        ["Email", email, setEmail, Mail, "email"],
-        ["Password", password, setPassword, LockKeyhole, "password"],
-      ].map(([label, value, setter, Icon, type]) => (
-        <label key={String(label)} className="block">
-          <span className="mb-2 block text-sm text-slate-300">{String(label)}</span>
+      {(
+        [
+          { label: "Full name", value: name, setter: setName, Icon: UserRound, type: "text" },
+          { label: "Email", value: email, setter: setEmail, Icon: Mail, type: "email" },
+          { label: "Password", value: password, setter: setPassword, Icon: LockKeyhole, type: "password" },
+        ] as Array<{ label: string; value: string; setter: (v: string) => void; Icon: LucideIcon; type: string }>
+      ).map(({ label, value, setter, Icon, type }) => (
+        <label key={label} className="block">
+          <span className="mb-2 block text-sm text-slate-300">{label}</span>
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4">
             <Icon size={19} className="text-cyan-400" />
-            <input type={String(type)} value={String(value)} onChange={(e) => (setter as (v: string) => void)(e.target.value)} className="min-w-0 flex-1 bg-transparent py-4 outline-none" />
+            <input type={type} value={value} onChange={(e) => setter(e.target.value)} className="min-w-0 flex-1 bg-transparent py-4 outline-none" />
           </div>
         </label>
       ))}

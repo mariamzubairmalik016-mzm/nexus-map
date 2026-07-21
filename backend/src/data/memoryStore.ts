@@ -49,7 +49,7 @@ export const memoryStore = {
       isVerified: true,
       createdAt: new Date().toISOString(),
     },
-  ] satisfies Place[],
+  ] as Place[],
   reports: [] as CommunityReport[],
   favorites: [] as Favorite[],
   history: [] as RouteHistory[],

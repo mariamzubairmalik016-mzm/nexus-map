@@ -124,9 +124,9 @@ navigationRouter.get(
   asyncHandler(async (request, response) => {
     const tile = await fetchTomTomTile(
       "map",
-      request.params.z,
-      request.params.x,
-      request.params.y,
+      String(request.params.z),
+      String(request.params.x),
+      String(request.params.y),
     );
 
     response.setHeader("Content-Type", tile.contentType);
@@ -140,9 +140,9 @@ navigationRouter.get(
   asyncHandler(async (request, response) => {
     const tile = await fetchTomTomTile(
       "traffic",
-      request.params.z,
-      request.params.x,
-      request.params.y,
+      String(request.params.z),
+      String(request.params.x),
+      String(request.params.y),
     );
 
     response.setHeader("Content-Type", tile.contentType);

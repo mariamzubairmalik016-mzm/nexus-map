@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { memoryStore } from "../data/memoryStore.js";
 import { requireAuth } from "../middleware/auth.js";
+import type { OfflineMapJob } from "../types/models.js";
 
 export const offlineMapsRouter = Router();
 offlineMapsRouter.use(requireAuth);
@@ -30,11 +31,11 @@ offlineMapsRouter.post("/", (request, response) => {
     country: 950,
   };
 
-  const job = {
+  const job: OfflineMapJob = {
     id: crypto.randomUUID(),
     userId: request.authUser!.id,
     ...body,
-    status: "queued" as const,
+    status: "queued",
     progress: 0,
     estimatedSizeMb: sizeByScope[body.scope],
     createdAt: new Date().toISOString(),

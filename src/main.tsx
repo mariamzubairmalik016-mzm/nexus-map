@@ -2,7 +2,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "react-hot-toast";
 
-import { App } from "./app";
+// Explicit .tsx extension avoids the case-insensitive collision with the
+// stray backend copy at src/app.ts, ensuring this resolves to the React root.
+import App from "./App.tsx";
 import { AuthProvider } from "./context/AuthContext";
 import { registerOfflineWorker } from "./services/registerOfflineWorker";
 

@@ -13,8 +13,25 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/app.ts",
+    "src/server.ts",
+    "src/config/env.ts",
+    "src/config/supabase.ts",
+    "src/middleware",
+    "src/routes/index.ts",
+    "src/routes/**/*.routes.ts",
+    "src/utils/asyncHandler.ts",
+    "src/utils/httpError.ts",
+    "src/data/memoryStore.ts",
+    "src/types/models.ts",
+    "src/types/express.d.ts",
+    "src/services/tomtom.service.ts",
+    "src/services/geoCatalog.service.ts"
+  ]
 }
