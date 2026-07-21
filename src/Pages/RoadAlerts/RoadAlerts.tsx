@@ -176,7 +176,7 @@ const RoadAlerts = () => {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="nexus-eyebrow">Live road intelligence</p>
-            <h1 className="mt-3 text-4xl font-bold sm:text-5xl">
+            <h1 className="text-hero-display mt-3 text-4xl sm:text-5xl">
               Road <span className="nexus-gradient-text">Alerts & Conditions</span>
             </h1>
             <p className="mt-4 max-w-2xl text-slate-400">

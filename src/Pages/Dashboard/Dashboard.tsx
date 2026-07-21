@@ -88,7 +88,7 @@ const Dashboard = () => {
       <div className="mx-auto max-w-7xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-[30px] border border-white/10 bg-gradient-to-br from-cyan-500/[.08] via-slate-950/80 to-purple-600/[.08] p-6 sm:p-8">
           <p className="text-sm uppercase tracking-[.25em] text-cyan-400">Personal navigation workspace</p>
-          <h1 className="mt-4 text-3xl font-bold leading-tight sm:text-5xl">Welcome back, <span className="block break-words text-gradient">{displayName}</span></h1>
+          <h1 className="text-hero-display mt-4 text-4xl leading-tight sm:text-5xl">Welcome back, <span className="block break-words text-gradient">{displayName}</span></h1>
           <p className="mt-4 max-w-2xl leading-7 text-slate-400">Explore the world, plan smarter journeys, download any map and manage your complete activity.</p>
           <div className="mt-6 flex flex-wrap gap-3"><Link to="/map" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950"><Compass size={18} />Explore World Map</Link><Link to="/ai-planner" className="inline-flex items-center gap-2 rounded-2xl border border-purple-400/20 bg-purple-400/10 px-5 py-3 text-purple-200"><Bot size={18} />Plan with Nexus AI</Link></div>
         </motion.div>

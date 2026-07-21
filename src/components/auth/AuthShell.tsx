@@ -27,7 +27,7 @@ const AuthShell = ({ eyebrow, title, subtitle, children, footer }: Props) => {
             <Map size={26} />
           </div>
           {eyebrow && <p className="nexus-eyebrow">{eyebrow}</p>}
-          <h1 className="mt-3 text-3xl font-bold">
+          <h1 className="text-hero-display mt-3 text-4xl">
             <span className="nexus-gradient-text">{title}</span>
           </h1>
           {subtitle && <p className="mt-3 max-w-xs text-sm leading-6 text-slate-400">{subtitle}</p>}

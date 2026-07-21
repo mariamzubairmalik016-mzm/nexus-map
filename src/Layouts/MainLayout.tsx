@@ -6,6 +6,7 @@ import Navbar from "../components/layouts/Navbar";
 import Footer from "../components/layouts/Footer";
 import AIChatbot from "../components/ai/AIChatbot";
 import PageTransition from "../components/ui/PageTransition";
+import CinematicBackground from "../components/ui/CinematicBackground";
 
 const MainLayout = () => {
   const location = useLocation();
@@ -16,11 +17,7 @@ const MainLayout = () => {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div className="nexus-aurora-1 absolute -left-40 top-24 h-96 w-96 rounded-full bg-cyan-500/[0.055] blur-[110px]" />
-        <div className="nexus-aurora-2 absolute -right-36 top-60 h-[30rem] w-[30rem] rounded-full bg-purple-500/[0.055] blur-[120px]" />
-        <div className="nexus-aurora-3 absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-blue-500/[0.04] blur-[100px]" />
-      </div>
+      <CinematicBackground />
 
       <Navbar />
 

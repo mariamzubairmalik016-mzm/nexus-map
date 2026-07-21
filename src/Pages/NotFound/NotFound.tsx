@@ -17,7 +17,7 @@ const NotFound = () => {
           <Compass size={40} />
         </div>
         <p className="nexus-eyebrow mt-6">Error 404</p>
-        <h1 className="mt-3 text-5xl font-black sm:text-6xl">
+        <h1 className="text-hero-display mt-3 text-5xl sm:text-6xl">
           <span className="nexus-gradient-text">Lost the signal</span>
         </h1>
         <p className="mt-4 text-slate-400">The page you're looking for drifted off the map.</p>

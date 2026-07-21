@@ -147,7 +147,7 @@ const Explore = () => {
           className="text-center"
         >
           <p className="nexus-eyebrow">Pakistan and worldwide discovery</p>
-          <h1 className="mt-4 text-4xl font-bold sm:text-6xl">
+          <h1 className="text-hero-display mt-4 text-5xl sm:text-6xl">
             Explore <span className="nexus-gradient-text">real destinations</span>
           </h1>
           <p className="mx-auto mt-4 max-w-3xl leading-7 text-slate-400">

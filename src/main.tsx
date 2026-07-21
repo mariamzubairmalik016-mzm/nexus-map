@@ -11,6 +11,7 @@ import { registerOfflineWorker } from "./services/registerOfflineWorker";
 // Self-hosted premium fonts (work offline — bundled, not fetched from Google).
 import "@fontsource-variable/space-grotesk";
 import "@fontsource-variable/inter";
+import "@fontsource/marcellus"; // antique display font for hero headings
 
 // @ts-ignore: side-effect CSS imports may not have type declarations in this setup
 import "leaflet/dist/leaflet.css";
