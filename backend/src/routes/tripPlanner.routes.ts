@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { requireAuth } from "../middleware/auth.js";
+import { aiConfigured, generateAiTripPlan } from "../services/ai.service.js";
 
 export const tripPlannerRouter = Router();
 
@@ -295,7 +296,7 @@ const rotate = <T,>(items: T[], offset: number) =>
 tripPlannerRouter.post(
   "/generate",
   requireAuth,
-  (request, response) => {
+  async (request, response) => {
     const body = z
       .object({
         destination: z.string().trim().min(2),
@@ -306,6 +307,18 @@ tripPlannerRouter.post(
         transport: z.string().trim().default("Car"),
       })
       .parse(request.body);
+
+    // Prefer a real AI-generated plan; fall back to the deterministic planner
+    // below if AI is unconfigured or the request fails.
+    if (aiConfigured) {
+      try {
+        const aiPlan = await generateAiTripPlan(body);
+        response.status(201).json({ success: true, data: aiPlan });
+        return;
+      } catch {
+        // fall through to the deterministic planner
+      }
+    }
 
     const normalized = body.destination.toLowerCase();
 

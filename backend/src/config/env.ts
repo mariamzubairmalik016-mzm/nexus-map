@@ -31,6 +31,11 @@ const schema = z.object({
     .string()
     .optional()
     .or(z.literal("")),
+
+  OPENAI_MODEL: z
+    .string()
+    .optional()
+    .or(z.literal("")),
 });
 
 export const env = schema.parse(process.env);
@@ -39,3 +44,5 @@ export const databaseConfigured = Boolean(
   env.SUPABASE_URL &&
     env.SUPABASE_SERVICE_ROLE_KEY,
 );
+
+export const aiConfigured = Boolean(env.OPENAI_API_KEY);
