@@ -1,4 +1,5 @@
-const APP_CACHE = "nexus-map-app-v3";
+// Bumped so the old (broken) worker is replaced and its cache is cleaned up.
+const APP_CACHE = "nexus-map-app-v4";
 const TILE_CACHE = "nexus-map-offline-tiles-v1";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/pwa-icon.svg", "/favicon.svg"];
 const SYNC_TAG = "nexus-sync-queue";
@@ -26,42 +27,66 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Safely cache a response copy. The clone MUST be created by the caller
+// (synchronously, before the original is returned/consumed).
+function putInCache(cacheName, request, responseClone) {
+  return caches
+    .open(cacheName)
+    .then((cache) => cache.put(request, responseClone))
+    .catch(() => {
+      /* quota / opaque / eviction — non-fatal */
+    });
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  const url = new URL(request.url);
+
+  // Never cache or intercept non-GET requests (rule 7).
   if (request.method !== "GET") return;
 
+  const url = new URL(request.url);
   const isTile = url.hostname === "tile.openstreetmap.org" && url.pathname.endsWith(".png");
 
+  // --- Map tiles: cache-first ---
   if (isTile) {
     event.respondWith(
-      caches.open(TILE_CACHE).then(async (cache) => {
+      (async () => {
+        const cache = await caches.open(TILE_CACHE);
         const cached = await cache.match(request);
         if (cached) return cached;
         try {
-          const response = await fetch(request);
-          if (response.ok) cache.put(request, response.clone());
-          return response;
+          const networkResponse = await fetch(request);
+          // Clone immediately, before returning, and only cache OK responses.
+          if (networkResponse.ok) {
+            event.waitUntil(putInCache(TILE_CACHE, request, networkResponse.clone()));
+          }
+          return networkResponse;
         } catch {
           return new Response("", { status: 503 });
         }
-      }),
+      })(),
     );
     return;
   }
 
+  // --- Everything else (same-origin app shell / assets): network-first ---
   event.respondWith(
     fetch(request)
-      .then((response) => {
-        if (response.ok && request.url.startsWith(self.location.origin)) {
-          caches.open(APP_CACHE).then((cache) => cache.put(request, response.clone()));
+      .then((networkResponse) => {
+        // Clone SYNCHRONOUSLY here, before returning the original — otherwise the
+        // browser consumes the body before the async cache.put clones it.
+        if (networkResponse.ok && url.origin === self.location.origin) {
+          event.waitUntil(putInCache(APP_CACHE, request, networkResponse.clone()));
         }
-        return response;
+        return networkResponse;
       })
       .catch(async () => {
         const cached = await caches.match(request);
         if (cached) return cached;
-        if (request.mode === "navigate") return caches.match("/index.html");
+        if (request.mode === "navigate") {
+          const shell = await caches.match("/index.html");
+          if (shell) return shell;
+        }
         return new Response("Offline", { status: 503 });
       }),
   );
