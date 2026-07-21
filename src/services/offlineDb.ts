@@ -1,11 +1,130 @@
 import type { OfflinePack, OfflinePlace } from "../types/offline";
-const DB="nexus-map-offline", VERSION=1, PACKS="packs", PLACES="places";
-const openDb=()=>new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open(DB,VERSION);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(PACKS))d.createObjectStore(PACKS,{keyPath:"id"});if(!d.objectStoreNames.contains(PLACES)){const s=d.createObjectStore(PLACES,{keyPath:"id"});s.createIndex("packId","packId")}};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
-const all=async<T>(store:string)=>{const d=await openDb();return new Promise<T[]>((res,rej)=>{const q=d.transaction(store,"readonly").objectStore(store).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})};
-export const offlineDb={
- getPacks:()=>all<OfflinePack>(PACKS),
- savePack:async(p:OfflinePack)=>{const d=await openDb();return new Promise<void>((res,rej)=>{const q=d.transaction(PACKS,"readwrite").objectStore(PACKS).put(p);q.onsuccess=()=>res();q.onerror=()=>rej(q.error)})},
- deletePack:async(id:string)=>{const d=await openDb();return new Promise<void>((res,rej)=>{const q=d.transaction(PACKS,"readwrite").objectStore(PACKS).delete(id);q.onsuccess=()=>res();q.onerror=()=>rej(q.error)})},
- savePlaces:async(items:OfflinePlace[])=>{const d=await openDb();return new Promise<void>((res,rej)=>{const tx=d.transaction(PLACES,"readwrite"),s=tx.objectStore(PLACES);items.forEach(i=>s.put(i));tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})},
- searchPlaces:async(query:string)=>{const items=await all<OfflinePlace>(PLACES),q=query.toLowerCase().trim();return items.filter(i=>i.name.toLowerCase().includes(q)||i.category.toLowerCase().includes(q)||i.address?.toLowerCase().includes(q)).slice(0,30)}
+
+// A single request that failed while offline and must be replayed on reconnect.
+export type QueuedRequest = {
+  id: string;
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  label?: string;
+  createdAt: string;
+};
+
+// Locally cached copies of server data so pages still render offline.
+export type OfflineFavorite = { id: string; name: string; city?: string; country?: string; category?: string; imageUrl?: string; savedAt: string };
+export type OfflineHistoryItem = { id: string; startName: string; destinationName: string; distanceKm?: number; durationMinutes?: number; createdAt: string };
+
+const DB = "nexus-map-offline";
+const VERSION = 2;
+const PACKS = "packs";
+const PLACES = "places";
+const FAVORITES = "favorites";
+const HISTORY = "history";
+const QUEUE = "syncQueue";
+
+const openDb = () =>
+  new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(DB, VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(PACKS)) db.createObjectStore(PACKS, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(PLACES)) {
+        const store = db.createObjectStore(PLACES, { keyPath: "id" });
+        store.createIndex("packId", "packId");
+      }
+      if (!db.objectStoreNames.contains(FAVORITES)) db.createObjectStore(FAVORITES, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(HISTORY)) db.createObjectStore(HISTORY, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(QUEUE)) db.createObjectStore(QUEUE, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+const getAll = async <T>(store: string) => {
+  const db = await openDb();
+  return new Promise<T[]>((resolve, reject) => {
+    const query = db.transaction(store, "readonly").objectStore(store).getAll();
+    query.onsuccess = () => resolve(query.result as T[]);
+    query.onerror = () => reject(query.error);
+  });
+};
+
+const put = async <T>(store: string, value: T) => {
+  const db = await openDb();
+  return new Promise<void>((resolve, reject) => {
+    const query = db.transaction(store, "readwrite").objectStore(store).put(value);
+    query.onsuccess = () => resolve();
+    query.onerror = () => reject(query.error);
+  });
+};
+
+const putMany = async <T>(store: string, values: T[]) => {
+  const db = await openDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(store, "readwrite");
+    const objectStore = tx.objectStore(store);
+    values.forEach((value) => objectStore.put(value));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+const remove = async (store: string, id: string) => {
+  const db = await openDb();
+  return new Promise<void>((resolve, reject) => {
+    const query = db.transaction(store, "readwrite").objectStore(store).delete(id);
+    query.onsuccess = () => resolve();
+    query.onerror = () => reject(query.error);
+  });
+};
+
+const clear = async (store: string) => {
+  const db = await openDb();
+  return new Promise<void>((resolve, reject) => {
+    const query = db.transaction(store, "readwrite").objectStore(store).clear();
+    query.onsuccess = () => resolve();
+    query.onerror = () => reject(query.error);
+  });
+};
+
+export const offlineDb = {
+  // --- Map packs (existing API, unchanged behaviour) ---
+  getPacks: () => getAll<OfflinePack>(PACKS),
+  savePack: (pack: OfflinePack) => put(PACKS, pack),
+  deletePack: (id: string) => remove(PACKS, id),
+
+  // --- Offline places / search (existing API) ---
+  savePlaces: (items: OfflinePlace[]) => putMany(PLACES, items),
+  searchPlaces: async (query: string) => {
+    const items = await getAll<OfflinePlace>(PLACES);
+    const q = query.toLowerCase().trim();
+    if (!q) return items.slice(0, 30);
+    return items
+      .filter(
+        (item) =>
+          item.name.toLowerCase().includes(q) ||
+          item.category.toLowerCase().includes(q) ||
+          item.address?.toLowerCase().includes(q),
+      )
+      .slice(0, 30);
+  },
+
+  // --- Offline favorites cache ---
+  getFavorites: () => getAll<OfflineFavorite>(FAVORITES),
+  saveFavorites: (items: OfflineFavorite[]) => putMany(FAVORITES, items),
+  saveFavorite: (item: OfflineFavorite) => put(FAVORITES, item),
+  deleteFavorite: (id: string) => remove(FAVORITES, id),
+
+  // --- Offline trip/route history cache ---
+  getHistory: () => getAll<OfflineHistoryItem>(HISTORY),
+  saveHistory: (items: OfflineHistoryItem[]) => putMany(HISTORY, items),
+  addHistory: (item: OfflineHistoryItem) => put(HISTORY, item),
+  deleteHistory: (id: string) => remove(HISTORY, id),
+
+  // --- Offline write queue (background sync) ---
+  enqueue: (item: QueuedRequest) => put(QUEUE, item),
+  getQueue: () => getAll<QueuedRequest>(QUEUE),
+  dequeue: (id: string) => remove(QUEUE, id),
+  clearQueue: () => clear(QUEUE),
 };

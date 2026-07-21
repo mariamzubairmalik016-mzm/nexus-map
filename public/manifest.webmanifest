@@ -1,0 +1,21 @@
+{
+  "name": "Nexus Map",
+  "short_name": "Nexus Map",
+  "description": "Offline-ready maps, navigation, trip planning and travel discovery.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "categories": ["travel", "navigation", "maps"],
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
