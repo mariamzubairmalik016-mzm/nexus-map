@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Bot, Compass, Download, HardDrive, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Bell, Bot, Compass, Download, HardDrive, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, TriangleAlert, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { useGeolocation } from "../../hooks/useGeolocation";
@@ -9,6 +9,9 @@ import { offlineDb } from "../../services/offlineDb";
 import { offlineTileService } from "../../services/offlineTileService";
 import { getWeather, type WeatherData } from "../../services/weatherService";
 import { getStorageEstimate, formatBytes, type StorageEstimateInfo } from "../../services/storageManager";
+import { runHealthChecks, type ServiceHealth } from "../../services/healthChecks";
+import { roadAlertsService } from "../../services/roadAlertsService";
+import ServiceHealthGrid from "../../components/dashboard/ServiceHealthGrid";
 import WeatherPanel from "../../components/map/WeatherPanel";
 
 const quick = [
@@ -27,24 +30,41 @@ const Dashboard = () => {
 
   const online = useInternetStatus();
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [counts, setCounts] = useState({ saved: 0, offline: 0, routes: 0, ai: 0 });
+  const [counts, setCounts] = useState({ saved: 0, offline: 0, routes: 0, ai: 0, alerts: 0, critical: 0 });
   const [storage, setStorage] = useState<StorageEstimateInfo | null>(null);
+  const [health, setHealth] = useState<ServiceHealth[]>([]);
+  const [healthLoading, setHealthLoading] = useState(true);
 
   useEffect(() => {
     void (async () => {
-      const [favs, history, estimate] = await Promise.all([
+      const [favs, history, estimate, alertsResult] = await Promise.all([
         offlineDb.getFavorites().catch(() => []),
         offlineDb.getHistory().catch(() => []),
         getStorageEstimate().catch(() => null),
+        roadAlertsService.list({ status: "active" }).catch(() => ({ alerts: [], live: false })),
       ]);
+      const activeAlerts = alertsResult.alerts.filter((a) => a.status !== "resolved");
       setCounts({
         saved: favs.length,
         offline: offlineTileService.getAreas().length,
         routes: history.length,
         ai: 0,
+        alerts: activeAlerts.length,
+        critical: activeAlerts.filter((a) => a.severity === "critical" || a.severity === "high").length,
       });
       setStorage(estimate);
     })();
+  }, []);
+
+  const refreshHealth = () => {
+    setHealthLoading(true);
+    void runHealthChecks()
+      .then(setHealth)
+      .finally(() => setHealthLoading(false));
+  };
+
+  useEffect(() => {
+    refreshHealth();
   }, []);
 
   useEffect(() => {
@@ -58,6 +78,8 @@ const Dashboard = () => {
     { Icon: Heart, label: "Saved Places", value: counts.saved },
     { Icon: Download, label: "Offline Maps", value: counts.offline },
     { Icon: Navigation, label: "Saved Routes", value: counts.routes },
+    { Icon: TriangleAlert, label: "Active Alerts", value: counts.alerts },
+    { Icon: AlertTriangle, label: "Critical / High", value: counts.critical },
     { Icon: Bot, label: "AI Searches", value: counts.ai },
   ];
 
@@ -108,6 +130,10 @@ const Dashboard = () => {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6">
+          <ServiceHealthGrid services={health} loading={healthLoading} onRefresh={refreshHealth} />
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_.85fr]">
