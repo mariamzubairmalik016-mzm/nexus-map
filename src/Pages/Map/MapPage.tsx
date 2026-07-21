@@ -18,9 +18,14 @@ import toast from "react-hot-toast";
 
 import SearchAutocomplete from "../../components/map/SearchAutocomplete";
 import NavigationMap from "../../components/map/NavigationMap";
+import { AnimatePresence, motion } from "framer-motion";
+
 import { navigationApi } from "../../services/navigationApi";
 import { offlineDb } from "../../services/offlineDb";
+import { roadAlertsService } from "../../services/roadAlertsService";
+import AlertDetailPanel from "../../components/map/AlertDetailPanel";
 import { useLiveNavigation } from "../../hooks/useLiveNavigation";
+import type { RoadAlert } from "../../types/roadAlerts";
 import type {
   CommunityNote,
   Coordinates,
@@ -60,8 +65,107 @@ const MapPage = () => {
     "Nexus AI: Select a route and ask about ETA, traffic, destination or road conditions.",
   ]);
 
+  const [roadAlerts, setRoadAlerts] = useState<RoadAlert[]>([]);
+  const [selectedAlert, setSelectedAlert] = useState<RoadAlert | null>(null);
+  const [alertBusy, setAlertBusy] = useState(false);
+
   const live = useLiveNavigation();
   const activeRoute = live.activeRoute ?? selectedRoute;
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const { alerts } = await roadAlertsService.list({ status: "active" });
+      setRoadAlerts(alerts);
+    } catch {
+      /* keep previous alerts */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAlerts();
+    const unsubscribe = roadAlertsService.subscribeRealtime(() => void loadAlerts());
+    const timer = window.setInterval(() => void loadAlerts(), 45_000);
+    return () => {
+      unsubscribe();
+      window.clearInterval(timer);
+    };
+  }, [loadAlerts]);
+
+  const alertDistanceKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+    const R = 6371;
+    const dLat = ((bLat - aLat) * Math.PI) / 180;
+    const dLng = ((bLng - aLng) * Math.PI) / 180;
+    const s =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+
+  const countOnRoute = useCallback(
+    (route: RouteAlternative | null) =>
+      route
+        ? roadAlerts.filter((alert) =>
+            route.coordinates.some(
+              (c, i) => i % 4 === 0 && alertDistanceKm(alert.latitude, alert.longitude, c[0], c[1]) < 0.35,
+            ),
+          ).length
+        : 0,
+    [roadAlerts],
+  );
+
+  const alertsOnRoute = useMemo(
+    () =>
+      activeRoute
+        ? roadAlerts.filter((alert) =>
+            activeRoute.coordinates.some(
+              (c, i) => i % 4 === 0 && alertDistanceKm(alert.latitude, alert.longitude, c[0], c[1]) < 0.35,
+            ),
+          )
+        : [],
+    [activeRoute, roadAlerts],
+  );
+
+  const recalcAvoidingAlerts = () => {
+    if (routes.length < 2) {
+      toast.error("No alternative route available to avoid alerts.");
+      return;
+    }
+    const best = [...routes].sort((a, b) => countOnRoute(a) - countOnRoute(b))[0];
+    if (best && best.id !== selectedRoute?.id && countOnRoute(best) < countOnRoute(selectedRoute)) {
+      setSelectedRoute(best);
+      setSelectedAlert(null);
+      toast.success("Switched to a route with fewer alerts.");
+    } else {
+      toast("Already on the route with the fewest alerts.", { icon: "ℹ️" });
+    }
+  };
+
+  const confirmAlert = async (id: string) => {
+    try {
+      setAlertBusy(true);
+      await roadAlertsService.confirm(id);
+      await loadAlerts();
+      toast.success("Thanks — marked still active.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setAlertBusy(false);
+    }
+  };
+
+  const resolveAlert = async (id: string) => {
+    try {
+      setAlertBusy(true);
+      await roadAlertsService.resolve(id);
+      await loadAlerts();
+      setSelectedAlert(null);
+      toast.success("Marked as resolved.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setAlertBusy(false);
+    }
+  };
 
   useEffect(() => {
     const place = searchParams.get("place");
@@ -488,6 +592,8 @@ const MapPage = () => {
               currentLocation={live.current}
               incidents={incidents}
               communityNotes={communityNotes}
+              roadAlerts={roadAlerts}
+              onAlertSelect={setSelectedAlert}
               onBoundsChange={handleBoundsChange}
               onRouteSelect={setSelectedRoute}
             />
@@ -501,6 +607,47 @@ const MapPage = () => {
                 Search, traffic, incidents and GPS tracking
               </p>
             </div>
+
+            {/* Route warning banner */}
+            <AnimatePresence>
+              {alertsOnRoute.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  className="pointer-events-auto absolute left-1/2 top-4 z-[750] w-[min(440px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-amber-400/30 bg-amber-500/15 px-4 py-3 backdrop-blur-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="shrink-0 text-amber-300" size={18} />
+                    <p className="text-sm text-amber-100">
+                      {alertsOnRoute.length} road alert{alertsOnRoute.length > 1 ? "s" : ""} on your route
+                    </p>
+                    {routes.length > 1 && (
+                      <button
+                        onClick={recalcAvoidingAlerts}
+                        className="ml-auto shrink-0 rounded-lg bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-100"
+                      >
+                        Avoid
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Alert detail panel */}
+            <AnimatePresence>
+              {selectedAlert && (
+                <AlertDetailPanel
+                  alert={selectedAlert}
+                  busy={alertBusy}
+                  onClose={() => setSelectedAlert(null)}
+                  onConfirm={() => void confirmAlert(selectedAlert.id)}
+                  onResolve={() => void resolveAlert(selectedAlert.id)}
+                  onAvoid={routes.length > 1 ? recalcAvoidingAlerts : undefined}
+                />
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

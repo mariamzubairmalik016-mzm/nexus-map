@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { offlineDb } from "./offlineDb";
+import { supabase } from "../lib/supabase";
 import type { AlertSeverity, RoadAlert, RoadAlertType } from "../types/roadAlerts";
 
 export type ReportInput = {
@@ -42,4 +43,18 @@ export const roadAlertsService = {
   report: (input: ReportInput) => api.post<RoadAlert>("/road-alerts", input),
   confirm: (id: string) => api.post<RoadAlert>(`/road-alerts/${id}/confirm`, {}),
   resolve: (id: string) => api.post<RoadAlert>(`/road-alerts/${id}/resolve`, {}),
+
+  // Supabase Realtime when the road_alerts table exists; otherwise a no-op
+  // (polling covers refresh). Returns an unsubscribe function.
+  subscribeRealtime(onChange: () => void): () => void {
+    if (!supabase) return () => {};
+    const client = supabase;
+    const channel = client
+      .channel("nexus-road-alerts")
+      .on("postgres_changes", { event: "*", schema: "public", table: "road_alerts" }, () => onChange())
+      .subscribe();
+    return () => {
+      void client.removeChannel(channel);
+    };
+  },
 };

@@ -13,6 +13,7 @@ import {
 } from "react-leaflet";
 import L, { type LatLngBoundsExpression } from "leaflet";
 import "../../config/leaflet";
+import RoadAlertLayer from "./RoadAlertLayer";
 
 import type {
   CommunityNote,
@@ -20,6 +21,7 @@ import type {
   RouteAlternative,
   TrafficIncident,
 } from "../../types/navigation";
+import type { RoadAlert } from "../../types/roadAlerts";
 
 type Bounds = {
   west: number;
@@ -36,6 +38,8 @@ type Props = {
   currentLocation: Coordinates | null;
   incidents: TrafficIncident[];
   communityNotes: CommunityNote[];
+  roadAlerts?: RoadAlert[];
+  onAlertSelect?: (alert: RoadAlert) => void;
   onBoundsChange: (bounds: Bounds) => void;
   onRouteSelect: (route: RouteAlternative) => void;
 };
@@ -107,6 +111,8 @@ const NavigationMap = ({
   currentLocation,
   incidents,
   communityNotes,
+  roadAlerts,
+  onAlertSelect,
   onBoundsChange,
   onRouteSelect,
 }: Props) => {
@@ -259,6 +265,10 @@ const NavigationMap = ({
           </Popup>
         </Marker>
       ))}
+
+      {roadAlerts && onAlertSelect && (
+        <RoadAlertLayer alerts={roadAlerts} onSelect={onAlertSelect} />
+      )}
     </MapContainer>
   );
 };

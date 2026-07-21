@@ -277,6 +277,45 @@ h3,
   animation: nexus-aurora-drift 30s ease-in-out infinite;
 }
 
+/* Road-alert map markers */
+.nexus-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 3px solid #020617;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+.nexus-pin-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  animation: nexus-pin-pulse 1.6s ease-out infinite;
+}
+@keyframes nexus-pin-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+.nexus-cluster {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  background: rgba(2, 6, 23, 0.9);
+  border: 2px solid rgba(34, 211, 238, 0.5);
+  color: #fff;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
 .nexus-button-primary {
   display: inline-flex;
   align-items: center;
