@@ -5,8 +5,8 @@ import toast from "react-hot-toast";
 
 import { offlineDb, type OfflineFavorite } from "../../services/offlineDb";
 import { favoritesService } from "../../services/favoritesService";
-
-const fallbackImage = "/destinations/karachi.jpg";
+import { destinationImage } from "../../services/destinationImage";
+import DestinationImage from "../../components/ui/DestinationImage";
 
 const Favorites = () => {
   const [items, setItems] = useState<OfflineFavorite[]>([]);
@@ -48,13 +48,10 @@ const Favorites = () => {
           <div className="mt-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((place) => (
               <article key={place.id} className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[.04]">
-                <img
-                  src={place.imageUrl || fallbackImage}
+                <DestinationImage
+                  src={destinationImage(place.name, place.imageUrl)}
                   alt={place.name}
-                  className="aspect-[16/10] w-full object-cover"
-                  onError={(event) => {
-                    event.currentTarget.src = fallbackImage;
-                  }}
+                  className="aspect-[16/10] w-full"
                 />
                 <div className="p-5">
                   <h2 className="text-2xl font-bold">{place.name}</h2>

@@ -3,9 +3,9 @@ import { LoaderCircle, MapPin, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { geoService } from "../../services/geoService";
+import { destinationImage } from "../../services/destinationImage";
+import DestinationImage from "../ui/DestinationImage";
 import type { GeoCity } from "../../types/geo";
-
-const fallbackImage = "/destinations/karachi.jpg";
 
 const PopularDestinations = () => {
   const [items, setItems] = useState<GeoCity[]>([]);
@@ -55,13 +55,11 @@ const PopularDestinations = () => {
                 className="group overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04]"
               >
                 <div className="relative aspect-[16/10] overflow-hidden">
-                  <img
-                    src={place.image_url || fallbackImage}
+                  <DestinationImage
+                    src={destinationImage(place.name, place.image_url)}
                     alt={place.name}
-                    className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
-                    onError={(event) => {
-                      event.currentTarget.src = fallbackImage;
-                    }}
+                    className="h-full w-full"
+                    imgClassName="group-hover:scale-110"
                   />
 
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />

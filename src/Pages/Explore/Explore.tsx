@@ -7,36 +7,15 @@ import toast from "react-hot-toast";
 import { geoService } from "../../services/geoService";
 import { favoritesService } from "../../services/favoritesService";
 import { offlineDb } from "../../services/offlineDb";
+import { destinationImage } from "../../services/destinationImage";
+import DestinationImage from "../../components/ui/DestinationImage";
 import type { GeoCity } from "../../types/geo";
 import { useAuth } from "../../hooks/useAuth";
 
 const categories = ["All", "Nature", "Cities", "Heritage", "Religious", "Adventure"] as const;
 type Category = (typeof categories)[number];
 
-const fallbackImage = "/destinations/karachi.jpg";
-
-// Verified local imagery for well-known destinations. Used ahead of the DB
-// value so these cities always show a correct, unique picture even if the
-// database has a placeholder/duplicate URL.
-const LOCAL_IMAGES: Record<string, string> = {
-  karachi: "/destinations/karachi.jpg",
-  lahore: "/destinations/lahore.jpg",
-  islamabad: "/destinations/islamabad.jpg",
-  hunza: "/destinations/hunza.jpg",
-  skardu: "/destinations/skardu.jpg",
-  dubai: "/destinations/dubai.jpg",
-  istanbul: "/destinations/istanbul.jpg",
-  paris: "/destinations/paris.jpg",
-  london: "/destinations/london.jpg",
-  tokyo: "/destinations/tokyo.jpg",
-  bali: "/destinations/bali.jpg",
-};
-
-const imageFor = (city: GeoCity) => {
-  const key = city.name.toLowerCase().trim();
-  const matched = Object.keys(LOCAL_IMAGES).find((name) => key.includes(name));
-  return matched ? LOCAL_IMAGES[matched] : city.image_url || fallbackImage;
-};
+const imageFor = (city: GeoCity) => destinationImage(city.name, city.image_url);
 
 // ISO-3166 alpha-2 -> flag emoji (regional indicator symbols).
 const countryFlag = (iso2?: string) => {
@@ -184,15 +163,11 @@ const Explore = () => {
             transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
             className="group relative mt-9 overflow-hidden rounded-[30px] border border-white/10"
           >
-            <img
+            <DestinationImage
               src={imageFor(featured)}
               alt={`${featured.name}, ${featured.country_iso2}`}
-              loading="lazy"
-              decoding="async"
-              className="h-56 w-full object-cover transition duration-700 group-hover:scale-105 sm:h-72"
-              onError={(event) => {
-                event.currentTarget.src = fallbackImage;
-              }}
+              className="h-56 w-full sm:h-72"
+              imgClassName="group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
@@ -310,15 +285,11 @@ const Explore = () => {
                   className="nexus-card group overflow-hidden"
                 >
                   <div className="relative aspect-[16/10] overflow-hidden">
-                    <img
+                    <DestinationImage
                       src={imageFor(city)}
                       alt={`${city.name}, ${city.country_iso2} — ${city.city_type}`}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
-                      onError={(event) => {
-                        event.currentTarget.src = fallbackImage;
-                      }}
+                      className="h-full w-full"
+                      imgClassName="group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
 
