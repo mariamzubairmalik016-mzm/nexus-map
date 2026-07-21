@@ -1,23 +1,33 @@
 import { Globe2, Map, Search, Users } from "lucide-react";
 
+import AnimatedCounter from "../ui/AnimatedCounter";
+import Reveal from "../ui/Reveal";
+
 const items = [
-  { value: "195+", label: "Countries", icon: Globe2 },
-  { value: "250K+", label: "Users", icon: Users },
-  { value: "120M+", label: "Places", icon: Map },
-  { value: "15M+", label: "AI Searches", icon: Search },
+  { target: 195, suffix: "+", label: "Countries", icon: Globe2 },
+  { target: 250, suffix: "K+", label: "Users", icon: Users },
+  { target: 120, suffix: "M+", label: "Places", icon: Map },
+  { target: 15, suffix: "M+", label: "AI Searches", icon: Search },
 ];
 
 const Stats = () => (
   <section className="bg-[#020617] px-4 py-12 sm:px-6 lg:px-8">
     <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {items.map(({ value, label, icon: Icon }) => (
-        <article key={label} className="rounded-[26px] border border-white/10 bg-white/[.04] p-6">
-          <Icon className="text-cyan-400" />
-          <p className="mt-5 text-4xl font-bold">{value}</p>
-          <p className="mt-2 text-slate-400">{label}</p>
-        </article>
+      {items.map(({ target, suffix, label, icon: Icon }, index) => (
+        <Reveal key={label} delay={index * 0.08}>
+          <article className="nexus-card h-full p-6">
+            <div className="inline-flex rounded-2xl bg-cyan-400/10 p-3 text-cyan-400">
+              <Icon size={22} />
+            </div>
+            <p className="mt-5 text-4xl font-bold">
+              <AnimatedCounter target={target} suffix={suffix} />
+            </p>
+            <p className="mt-2 text-slate-400">{label}</p>
+          </article>
+        </Reveal>
       ))}
     </div>
   </section>
 );
+
 export default Stats;

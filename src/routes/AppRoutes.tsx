@@ -1,27 +1,30 @@
+import { lazy } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import MainLayout from "../Layouts/MainLayout";
-import Home from "../Pages/Home/Home";
-import Explore from "../Pages/Explore/Explore";
-import MapPage from "../Pages/Map/MapPage";
-import Community from "../Pages/Community/Community";
-import Login from "../Pages/Auth/Login";
-import Signup from "../Pages/Auth/Signup";
-import ForgotPassword from "../Pages/Auth/ForgotPassword";
-import ResetPassword from "../Pages/Auth/ResetPassword";
-import Dashboard from "../Pages/Dashboard/Dashboard";
-import Profile from "../Pages/Profile/Profile";
-import Favorites from "../Pages/Favorites/Favorites";
-import History from "../Pages/History/History";
-import Notifications from "../Pages/Notifications/Notifications";
-import OfflineMaps from "../Pages/OfflineMaps/OfflineMaps";
-import AIPlanner from "../Pages/AIPlanner/AIPlanner";
-import Settings from "../Pages/Settings/Settings";
-import AdminDashboard from "../Pages/Admin/AdminDashboard";
-import NotFound from "../Pages/NotFound/NotFound";
-
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
+
+// Route-level code splitting — each page is its own chunk, loaded on demand
+// (Suspense boundary lives in MainLayout).
+const Home = lazy(() => import("../Pages/Home/Home"));
+const Explore = lazy(() => import("../Pages/Explore/Explore"));
+const MapPage = lazy(() => import("../Pages/Map/MapPage"));
+const Community = lazy(() => import("../Pages/Community/Community"));
+const Login = lazy(() => import("../Pages/Auth/Login"));
+const Signup = lazy(() => import("../Pages/Auth/Signup"));
+const ForgotPassword = lazy(() => import("../Pages/Auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("../Pages/Auth/ResetPassword"));
+const Dashboard = lazy(() => import("../Pages/Dashboard/Dashboard"));
+const Profile = lazy(() => import("../Pages/Profile/Profile"));
+const Favorites = lazy(() => import("../Pages/Favorites/Favorites"));
+const History = lazy(() => import("../Pages/History/History"));
+const Notifications = lazy(() => import("../Pages/Notifications/Notifications"));
+const OfflineMaps = lazy(() => import("../Pages/OfflineMaps/OfflineMaps"));
+const AIPlanner = lazy(() => import("../Pages/AIPlanner/AIPlanner"));
+const Settings = lazy(() => import("../Pages/Settings/Settings"));
+const AdminDashboard = lazy(() => import("../Pages/Admin/AdminDashboard"));
+const NotFound = lazy(() => import("../Pages/NotFound/NotFound"));
 
 const AppRoutes = () => (
   <BrowserRouter>

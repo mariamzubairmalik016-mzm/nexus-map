@@ -8,6 +8,10 @@ import App from "./App.tsx";
 import { AuthProvider } from "./context/AuthContext";
 import { registerOfflineWorker } from "./services/registerOfflineWorker";
 
+// Self-hosted premium fonts (work offline — bundled, not fetched from Google).
+import "@fontsource-variable/space-grotesk";
+import "@fontsource-variable/inter";
+
 // @ts-ignore: side-effect CSS imports may not have type declarations in this setup
 import "leaflet/dist/leaflet.css";
 // @ts-ignore: side-effect CSS imports may not have type declarations in this setup
