@@ -5,6 +5,7 @@ import type {
   SearchSuggestion,
   TrafficIncident,
 } from "../types/navigation";
+import { assertOnline } from "./networkStatus";
 
 const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -19,6 +20,8 @@ const request = async <T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> => {
+  // Navigation depends on the live TomTom proxy — never call it offline.
+  assertOnline();
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers: {

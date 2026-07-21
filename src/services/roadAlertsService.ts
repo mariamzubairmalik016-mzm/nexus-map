@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { offlineDb } from "./offlineDb";
 import { supabase } from "../lib/supabase";
+import { networkStatus } from "./networkStatus";
 import {
   EMPTY_SOURCES_META,
   type AlertSeverity,
@@ -50,6 +51,16 @@ export const roadAlertsService = {
     if (filter.lng != null) params.set("lng", String(filter.lng));
     if (filter.radiusKm != null) params.set("radiusKm", String(filter.radiusKm));
 
+    // Offline-first: serve the cache directly without touching the network.
+    if (networkStatus.isOffline()) {
+      const cached = (await offlineDb.getRoadAlerts().catch(() => [])).map((a) => ({
+        ...a,
+        originalSource: a.source,
+        source: "cached" as const,
+      }));
+      return { alerts: cached, meta: { ...EMPTY_SOURCES_META, cached: { count: cached.length } }, live: false };
+    }
+
     try {
       const response = await fetch(`${API_URL}/road-alerts?${params.toString()}`);
       if (!response.ok) throw new Error(String(response.status));
@@ -84,7 +95,8 @@ export const roadAlertsService = {
 
   // Supabase Realtime when the road_alerts table exists; otherwise a no-op.
   subscribeRealtime(onChange: () => void): () => void {
-    if (!supabase) return () => {};
+    // Never open a Realtime WebSocket while offline (prevents reconnect floods).
+    if (!supabase || networkStatus.isOffline()) return () => {};
     const client = supabase;
     const channel = client
       .channel("nexus-road-alerts")

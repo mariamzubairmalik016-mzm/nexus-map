@@ -1,2 +1,10 @@
-import { useEffect,useState } from "react";
-export const useInternetStatus=()=>{const [online,setOnline]=useState(navigator.onLine);useEffect(()=>{const a=()=>setOnline(true),b=()=>setOnline(false);addEventListener("online",a);addEventListener("offline",b);return()=>{removeEventListener("online",a);removeEventListener("offline",b)}},[]);return online};
+import { useEffect, useState } from "react";
+
+import { networkStatus } from "../services/networkStatus";
+
+// Backed by the single networkStatus source so every component agrees.
+export const useInternetStatus = () => {
+  const [online, setOnline] = useState(networkStatus.isOnline());
+  useEffect(() => networkStatus.subscribe(setOnline), []);
+  return online;
+};

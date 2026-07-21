@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { queueRequest } from "./offlineQueue";
+import { networkStatus, OfflineError } from "./networkStatus";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
@@ -32,6 +33,22 @@ const request = async <T>(
   const url = `${API_URL}${endpoint}`;
   const headers = { ...(await authHeaders()), ...(options.headers as Record<string, string>) };
   const method = (options.method || "GET").toUpperCase();
+
+  // Offline-first: never touch the network while offline. Writes are queued;
+  // reads throw OfflineError so the caller can serve its local cache.
+  if (networkStatus.isOffline()) {
+    if (method !== "GET") {
+      await queueRequest({
+        url,
+        method,
+        headers,
+        body: options.body ? JSON.parse(options.body as string) : undefined,
+        label: endpoint,
+      });
+      throw new Error("You are offline — this action was queued and will sync automatically.");
+    }
+    throw new OfflineError();
+  }
 
   let response: Response;
   try {

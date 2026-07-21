@@ -1,5 +1,6 @@
 import { isSupabaseConfigured } from "../lib/supabase";
 import { pendingCount } from "./offlineQueue";
+import { networkStatus } from "./networkStatus";
 
 export type HealthStatus = "healthy" | "degraded" | "offline" | "not-configured";
 export type ServiceHealth = { key: string; label: string; status: HealthStatus; detail: string };
@@ -8,12 +9,13 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 /** Runs real, non-blocking checks against each service the app depends on. */
 export const runHealthChecks = async (): Promise<ServiceHealth[]> => {
-  const online = navigator.onLine;
+  const online = networkStatus.isOnline();
 
   let backendOk = false;
   let backendDetail = online ? "Not running on :5000" : "You are offline";
   let dbFromBackend = "";
-  try {
+  // Never probe the network while offline (avoids console error noise).
+  if (online) try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4000);
     const res = await fetch(`${API_URL}/health`, { signal: controller.signal });

@@ -8,10 +8,13 @@ export type WeatherData = {
   weatherCode: number;
 };
 
+import { assertOnline } from "./networkStatus";
+
 export const getWeather = async (
   latitude: number,
   longitude: number,
 ): Promise<WeatherData> => {
+  assertOnline(); // Open-Meteo is a live service — skip when offline.
   const params = new URLSearchParams({
     latitude: String(latitude),
     longitude: String(longitude),

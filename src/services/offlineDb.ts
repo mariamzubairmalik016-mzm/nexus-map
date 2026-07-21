@@ -17,7 +17,7 @@ export type OfflineFavorite = { id: string; name: string; city?: string; country
 export type OfflineHistoryItem = { id: string; startName: string; destinationName: string; distanceKm?: number; durationMinutes?: number; createdAt: string };
 
 const DB_NAME = "nexus-map-offline";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 // Single source of truth for every object store. Adding a store here + bumping
 // DB_VERSION is all that's required; migration creates only what's missing.
@@ -33,6 +33,7 @@ const STORES: Record<string, StoreSpec> = {
   notifications: { keyPath: "id" },
   savedRoutes: { keyPath: "id" },
   aiHistory: { keyPath: "id" },
+  destinations: { keyPath: "id" },
 };
 const STORE_NAMES = Object.keys(STORES);
 
@@ -48,6 +49,7 @@ export const STORE = {
   notifications: "notifications",
   savedRoutes: "savedRoutes",
   aiHistory: "aiHistory",
+  destinations: "destinations",
 } as const;
 
 const debug = (...args: unknown[]) => {
@@ -236,4 +238,9 @@ export const offlineDb = {
       s.clear();
       items.forEach((item) => s.put(item));
     }),
+
+  // --- Offline destinations cache (Explore) ---
+  getDestinations: <T = unknown>() => readAll<T>(STORE.destinations),
+  saveDestinations: <T extends { id: string }>(items: T[]) =>
+    writeOp(STORE.destinations, (s) => items.forEach((item) => s.put(item))),
 };
