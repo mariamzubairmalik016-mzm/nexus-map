@@ -1,4 +1,5 @@
 import { offlineDb, type QueuedRequest } from "./offlineDb";
+import { savedPlacesService } from "./savedPlacesService";
 
 const SYNC_TAG = "nexus-sync-queue";
 
@@ -40,6 +41,15 @@ export const flushQueue = async (): Promise<{ flushed: number; remaining: number
   flushing = true;
   let flushed = 0;
   try {
+    // Saved places sync through Supabase directly rather than the HTTP queue,
+    // so push those first. Failures are retried on the next flush.
+    try {
+      const result = await savedPlacesService.sync();
+      flushed += result.pushed;
+    } catch {
+      /* leave them pending */
+    }
+
     const items = await offlineDb.getQueue();
     for (const item of items) {
       try {

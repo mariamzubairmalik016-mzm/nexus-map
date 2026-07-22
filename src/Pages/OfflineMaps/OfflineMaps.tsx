@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
   Download,
@@ -13,7 +13,9 @@ import {
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-import { offlineTileService, type OfflineArea } from "../../services/offlineTileService";
+import { offlineRegionService } from "../../services/offlineRegionService";
+import { getInitialCenter } from "../../config/mapView";
+import type { OfflineRegion, RegionBounds } from "../../types/offlineRegion";
 import { offlineDb } from "../../services/offlineDb";
 import { navigationApi } from "../../services/navigationApi";
 import type { OfflinePlace } from "../../types/offline";
@@ -24,22 +26,37 @@ import {
   type StorageEstimateInfo,
 } from "../../services/storageManager";
 
-// Scope -> zoom range + tile radius. Kept modest to respect OSM tile usage and
-// keep downloads fast.
-const SCOPE_PARAMS: Record<string, { zoomMin: number; zoomMax: number; radiusTiles: number }> = {
-  City: { zoomMin: 11, zoomMax: 14, radiusTiles: 2 },
-  District: { zoomMin: 11, zoomMax: 14, radiusTiles: 3 },
-  "Province / State": { zoomMin: 8, zoomMax: 12, radiusTiles: 3 },
-  Country: { zoomMin: 6, zoomMax: 10, radiusTiles: 3 },
+/**
+ * Scope -> a bounding box around the resolved point, plus a zoom range.
+ * Kept modest deliberately: the OpenStreetMap tile usage policy forbids bulk
+ * downloading, and these ranges keep a region to a few hundred tiles.
+ */
+const SCOPE_PARAMS: Record<string, { halfSpanDegrees: number; minZoom: number; maxZoom: number }> = {
+  City: { halfSpanDegrees: 0.08, minZoom: 11, maxZoom: 15 },
+  District: { halfSpanDegrees: 0.2, minZoom: 10, maxZoom: 14 },
+  "Province / State": { halfSpanDegrees: 1.0, minZoom: 8, maxZoom: 11 },
+  Country: { halfSpanDegrees: 3.0, minZoom: 6, maxZoom: 9 },
 };
 
-const approxSizeMb = (tileCount: number) => Math.max(1, Math.round(tileCount * 0.02));
+const boundsAround = (latitude: number, longitude: number, halfSpan: number): RegionBounds => ({
+  north: Math.min(85, latitude + halfSpan),
+  south: Math.max(-85, latitude - halfSpan),
+  east: Math.min(180, longitude + halfSpan),
+  west: Math.max(-180, longitude - halfSpan),
+});
+
+const formatMb = (bytes: number) => `${Math.max(0.1, bytes / 1024 / 1024).toFixed(1)} MB`;
+
+const regionCenter = (region: OfflineRegion) => ({
+  latitude: (region.bounds.north + region.bounds.south) / 2,
+  longitude: (region.bounds.east + region.bounds.west) / 2,
+});
 
 const OfflineMaps = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState("City");
-  const [areas, setAreas] = useState<OfflineArea[]>([]);
+  const [areas, setAreas] = useState<OfflineRegion[]>([]);
   const [storage, setStorage] = useState<StorageEstimateInfo | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,12 +71,27 @@ const OfflineMaps = () => {
   };
 
   useEffect(() => {
-    setAreas(offlineTileService.getAreas());
+    void offlineRegionService.list().then(setAreas);
     void requestPersistentStorage();
     void refreshStorage();
   }, []);
 
-  const upsertArea = (area: OfflineArea) =>
+  /**
+   * Size preview for the selected scope, computed at the map's current view so
+   * the numbers reflect roughly where the user is looking. The real count is
+   * recomputed against the resolved place before anything downloads.
+   */
+  const scopeEstimate = useMemo(() => {
+    const params = SCOPE_PARAMS[scope] ?? SCOPE_PARAMS.City;
+    const center = getInitialCenter();
+    return offlineRegionService.estimate(
+      boundsAround(center.latitude, center.longitude, params.halfSpanDegrees),
+      params.minZoom,
+      params.maxZoom,
+    );
+  }, [scope]);
+
+  const upsertArea = (area: OfflineRegion) =>
     setAreas((prev) =>
       prev.some((a) => a.id === area.id) ? prev.map((a) => (a.id === area.id ? area : a)) : [area, ...prev],
     );
@@ -94,42 +126,96 @@ const OfflineMaps = () => {
       return;
     }
 
+    const bounds = boundsAround(coordinates.latitude, coordinates.longitude, params.halfSpanDegrees);
+    const estimate = offlineRegionService.estimate(bounds, params.minZoom, params.maxZoom);
+
+    if (estimate.tooLarge) {
+      toast.error(
+        `That area needs ${estimate.tileCount.toLocaleString()} tiles. Choose a smaller scope.`,
+        { id: toastId },
+      );
+      return;
+    }
+
     setQuery("");
-    toast.loading(`Downloading ${name}…`, { id: toastId });
+    toast.loading(
+      `Downloading ${name} — ${estimate.tileCount.toLocaleString()} tiles (~${formatMb(estimate.sizeBytes)})…`,
+      { id: toastId },
+    );
 
     try {
-      await offlineTileService.downloadArea(
-        { name, latitude: coordinates.latitude, longitude: coordinates.longitude, ...params },
-        (area) => upsertArea(area),
+      const region = await offlineRegionService.download(
+        { name, bounds, minZoom: params.minZoom, maxZoom: params.maxZoom },
+        upsertArea,
       );
+
       // Make the downloaded location searchable offline.
       await offlineDb.savePlaces([
         {
-          id: crypto.randomUUID(),
-          packId: name,
+          id: `region-${region.id}`,
+          packId: region.id,
           name,
           category: "Downloaded area",
           latitude: coordinates.latitude,
           longitude: coordinates.longitude,
         },
       ]);
-      setAreas(offlineTileService.getAreas());
+
+      setAreas(await offlineRegionService.list());
       await refreshStorage();
-      toast.success(`${name} is available offline.`, { id: toastId });
-    } catch {
-      setAreas(offlineTileService.getAreas());
-      toast.error(`Could not download ${name}. Check your connection.`, { id: toastId });
+
+      if (region.status === "downloaded") {
+        toast.success(`${name} is available offline.`, { id: toastId });
+      } else if (region.status === "paused") {
+        toast(`${name} paused.`, { id: toastId, icon: "⏸️" });
+      } else {
+        toast.error(`Could not download ${name}.`, { id: toastId });
+      }
+    } catch (error) {
+      setAreas(await offlineRegionService.list());
+      toast.error(error instanceof Error ? error.message : `Could not download ${name}.`, { id: toastId });
+    }
+  };
+
+  const pauseArea = (id: string) => {
+    offlineRegionService.pause(id);
+    toast("Pausing after the current batch…", { icon: "⏸️" });
+  };
+
+  /** Re-downloads a region so its tiles reflect the current map data. */
+  const updateArea = async (region: OfflineRegion) => {
+    const toastId = toast.loading(`Updating ${region.name}…`);
+    try {
+      offlineRegionService.resumeFlagCleared(region.id);
+      await offlineRegionService.download(
+        {
+          id: region.id,
+          name: region.name,
+          bounds: region.bounds,
+          minZoom: region.minZoom,
+          maxZoom: region.maxZoom,
+        },
+        upsertArea,
+      );
+      setAreas(await offlineRegionService.list());
+      await refreshStorage();
+      toast.success(`${region.name} updated.`, { id: toastId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Update failed.", { id: toastId });
     }
   };
 
   const removeArea = async (id: string) => {
-    await offlineTileService.removeArea(id);
-    setAreas(offlineTileService.getAreas());
+    await offlineRegionService.remove(id);
+    setAreas(await offlineRegionService.list());
     await refreshStorage();
   };
 
-  const openMap = (area: OfflineArea) => {
-    navigate(`/map?place=${encodeURIComponent(area.name)}&lat=${area.latitude}&lng=${area.longitude}`);
+  const openMap = (area: OfflineRegion) => {
+    const center = regionCenter(area);
+    navigate(
+      `/map?place=${encodeURIComponent(area.name)}&lat=${center.latitude}&lng=${center.longitude}`,
+    );
   };
 
   const runSearch = async (value: string) => {
@@ -196,7 +282,26 @@ const OfflineMaps = () => {
                 <option>Country</option>
               </select>
 
-              <button className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 py-4 font-semibold text-slate-950">
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Approx. {scopeEstimate.tileCount.toLocaleString()} tiles ·{" "}
+                {formatMb(scopeEstimate.sizeBytes)} at zoom {SCOPE_PARAMS[scope]?.minZoom}–
+                {SCOPE_PARAMS[scope]?.maxZoom}. The exact count depends on where the place is.
+                {scopeEstimate.large && !scopeEstimate.tooLarge && (
+                  <span className="mt-1 block text-amber-300">
+                    This is a large download — it may take a while.
+                  </span>
+                )}
+                {scopeEstimate.tooLarge && (
+                  <span className="mt-1 block text-red-300">
+                    Too large to download. Pick a smaller scope.
+                  </span>
+                )}
+              </p>
+
+              <button
+                disabled={scopeEstimate.tooLarge}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 py-4 font-semibold text-slate-950 disabled:opacity-50"
+              >
                 <Download size={19} />
                 Download this area
               </button>
@@ -261,17 +366,34 @@ const OfflineMaps = () => {
                           </div>
 
                           <p className="mt-1 text-sm text-slate-400">
-                            {area.tileCount} tiles · ~{approxSizeMb(area.tileCount)} MB
+                            {area.downloadedTileCount.toLocaleString()} / {area.tileCount.toLocaleString()} tiles ·{" "}
+                            {formatMb(area.sizeBytes)} · z{area.minZoom}–{area.maxZoom}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            Updated {new Date(area.updatedAt).toLocaleString()} · v{area.version} · {area.provider}
                           </p>
 
                           {area.status === "downloading" && (
                             <div className="mt-3">
                               <div className="h-2 w-60 overflow-hidden rounded-full bg-white/10">
-                                <div className="h-full bg-cyan-500 transition-all" style={{ width: `${area.progress}%` }} />
+                                <div
+                                  className="h-full bg-cyan-500 transition-all"
+                                  style={{
+                                    width: `${Math.round((area.downloadedTileCount / Math.max(1, area.tileCount)) * 100)}%`,
+                                  }}
+                                />
                               </div>
-                              <p className="mt-1 text-xs text-slate-500">{area.progress}%</p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {Math.round((area.downloadedTileCount / Math.max(1, area.tileCount)) * 100)}%
+                              </p>
                             </div>
                           )}
+
+                          {area.status === "paused" && (
+                            <p className="mt-2 text-xs text-amber-300">Paused — use Update to finish it.</p>
+                          )}
+                          {area.lastError && <p className="mt-2 text-xs text-red-300">{area.lastError}</p>}
                         </div>
                       </div>
 
@@ -287,14 +409,32 @@ const OfflineMaps = () => {
                           </button>
                         )}
 
-                        {area.status !== "downloading" && (
+                        {area.status === "downloading" ? (
                           <button
                             type="button"
-                            onClick={() => removeArea(area.id)}
-                            className="rounded-xl bg-red-400/10 p-3 text-red-300"
+                            onClick={() => pauseArea(area.id)}
+                            className="rounded-xl bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-200"
                           >
-                            <Trash2 size={18} />
+                            Pause
                           </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void updateArea(area)}
+                              className="rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200"
+                            >
+                              Update
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Delete ${area.name}`}
+                              onClick={() => removeArea(area.id)}
+                              className="rounded-xl bg-red-400/10 p-3 text-red-300"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>

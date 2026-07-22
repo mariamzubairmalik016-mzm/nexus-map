@@ -17,9 +17,11 @@ import {
 import toast from "react-hot-toast";
 
 import { generateTripPlan } from "../../services/tripPlannerService";
+import { useInternetStatus } from "../../hooks/useInternetStatus";
 import type { GeneratedTripPlan } from "../../types/tripPlanner";
 
 const AIPlanner = () => {
+  const online = useInternetStatus();
   const [destination, setDestination] = useState("Hunza Valley");
   const [days, setDays] = useState(4);
   const [budget, setBudget] = useState(80000);
@@ -42,6 +44,14 @@ const AIPlanner = () => {
 
     if (budget <= 0) {
       toast.error("Please enter a valid budget.");
+      return;
+    }
+
+    // AI planning needs the backend. Offline we say so plainly instead of
+    // letting a fetch fail into a console error — every other feature (map,
+    // GPS, saved places, saved routes, downloaded regions) keeps working.
+    if (!online) {
+      toast.error("Trip planning needs an internet connection. Your saved plans and routes still work offline.");
       return;
     }
 
