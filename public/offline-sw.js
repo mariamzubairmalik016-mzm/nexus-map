@@ -1,5 +1,5 @@
 // Bumped so the old (broken) worker is replaced and its cache is cleaned up.
-const APP_CACHE = "nexus-map-app-v4";
+const APP_CACHE = "nexus-map-app-v5";
 const TILE_CACHE = "nexus-map-offline-tiles-v1";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/pwa-icon.svg", "/favicon.svg"];
 const SYNC_TAG = "nexus-sync-queue";
@@ -46,6 +46,12 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   const isTile = url.hostname === "tile.openstreetmap.org" && url.pathname.endsWith(".png");
+
+  // Bypass the service worker entirely for cross-origin requests that aren't
+  // cacheable OSM tiles — i.e. the backend API, TomTom tiles, Supabase, etc.
+  // These go straight to the network so the SW never serves a stale 503 for
+  // /api/navigation, /api/road-alerts, /api/community or /api/health.
+  if (!isTile && url.origin !== self.location.origin) return;
 
   // --- Map tiles: cache-first ---
   if (isTile) {

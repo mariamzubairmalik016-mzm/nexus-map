@@ -32,10 +32,12 @@ export const searchTomTom = async (
     maxFuzzyLevel: "4",
   });
 
+  // Soft geo-bias only (no radius) — ranks nearby results higher WITHOUT
+  // hard-filtering out worldwide matches, so global search keeps working even
+  // when the user has GPS on.
   if (Number.isFinite(lat) && Number.isFinite(lon)) {
     params.set("lat", String(lat));
     params.set("lon", String(lon));
-    params.set("radius", "100000");
   }
 
   const url =

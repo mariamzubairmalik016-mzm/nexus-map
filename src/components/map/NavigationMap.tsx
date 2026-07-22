@@ -39,6 +39,7 @@ type Props = {
   incidents: TrafficIncident[];
   communityNotes: CommunityNote[];
   roadAlerts?: RoadAlert[];
+  showTraffic?: boolean;
   onAlertSelect?: (alert: RoadAlert) => void;
   onBoundsChange: (bounds: Bounds) => void;
   onRouteSelect: (route: RouteAlternative) => void;
@@ -112,6 +113,7 @@ const NavigationMap = ({
   incidents,
   communityNotes,
   roadAlerts,
+  showTraffic = false,
   onAlertSelect,
   onBoundsChange,
   onRouteSelect,
@@ -159,12 +161,16 @@ const NavigationMap = ({
         url={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/navigation/map-tile/{z}/{x}/{y}`}
       />
 
-      <TileLayer
-        attribution="Traffic © TomTom"
-        url={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/navigation/traffic-tile/{z}/{x}/{y}`}
-        opacity={0.75}
-        zIndex={500}
-      />
+      {/* Traffic is OFF by default — only loaded when the user enables it, so it
+          can never flood the map with /traffic-tile requests. */}
+      {showTraffic && (
+        <TileLayer
+          attribution="Traffic © TomTom"
+          url={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/navigation/traffic-tile/{z}/{x}/{y}`}
+          opacity={0.75}
+          zIndex={500}
+        />
+      )}
 
       <BoundsWatcher onBoundsChange={onBoundsChange} />
       <LiveController

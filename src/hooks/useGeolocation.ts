@@ -28,7 +28,7 @@ export const useGeolocation = () => {
         setError(locationError.message || "Unable to detect your location.");
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
   };
 

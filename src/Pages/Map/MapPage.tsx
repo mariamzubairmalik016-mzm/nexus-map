@@ -25,7 +25,28 @@ import { offlineDb } from "../../services/offlineDb";
 import { roadAlertsService } from "../../services/roadAlertsService";
 import AlertDetailPanel from "../../components/map/AlertDetailPanel";
 import { useLiveNavigation } from "../../hooks/useLiveNavigation";
+import { useGeolocation } from "../../hooks/useGeolocation";
 import type { RoadAlert } from "../../types/roadAlerts";
+
+const isValidCoord = (c: Coordinates | null): c is Coordinates =>
+  !!c &&
+  Number.isFinite(c.latitude) &&
+  Number.isFinite(c.longitude) &&
+  c.latitude >= -90 &&
+  c.latitude <= 90 &&
+  c.longitude >= -180 &&
+  c.longitude <= 180;
+
+const friendlyRouteError = (error: unknown): string => {
+  const msg = error instanceof Error ? error.message.toLowerCase() : "";
+  if (msg.includes("no_route") || msg.includes("no route") || msg.includes("productid"))
+    return "No route found between these places.";
+  if (msg.includes("offline") || msg.includes("failed to fetch") || msg.includes("network"))
+    return "Check your internet connection and try again.";
+  if (msg.includes("500") || msg.includes("503") || msg.includes("unavailable") || msg.includes("temporarily"))
+    return "The routing service is temporarily unavailable.";
+  return "Unable to calculate a route. Please try again.";
+};
 import type {
   CommunityNote,
   Coordinates,
@@ -68,8 +89,28 @@ const MapPage = () => {
   const [selectedAlert, setSelectedAlert] = useState<RoadAlert | null>(null);
   const [alertBusy, setAlertBusy] = useState(false);
 
+  const [showTraffic, setShowTraffic] = useState(false);
+
   const live = useLiveNavigation();
+  const geo = useGeolocation();
   const activeRoute = live.activeRoute ?? selectedRoute;
+
+  // GPS button: use the browser Geolocation API directly (no tracking mode
+  // required). When a fix arrives, set it as the start point.
+  useEffect(() => {
+    if (geo.coordinates) {
+      setStart({
+        latitude: geo.coordinates.latitude,
+        longitude: geo.coordinates.longitude,
+        accuracy: geo.coordinates.accuracy,
+      });
+      setStartText("Current Location");
+    }
+  }, [geo.coordinates]);
+
+  useEffect(() => {
+    if (geo.error) toast.error("Unable to access your location — please allow location permission.");
+  }, [geo.error]);
 
   const loadAlerts = useCallback(async () => {
     try {
@@ -182,67 +223,48 @@ const MapPage = () => {
   }, [searchParams]);
 
 
-  const resolveSearch = async (
-    text: string,
-    fallback?: Coordinates | null,
-  ) => {
-    if (fallback) return fallback;
-    const results = await navigationApi.search(text, live.current);
-    return results[0]?.position ?? null;
-  };
-
   const calculateRoutes = async () => {
+    // Require real, selected coordinates — a typed string is not a location.
+    if (!isValidCoord(start) || !isValidCoord(destination)) {
+      toast.error("Please select a valid starting point and destination from the suggestions.");
+      return;
+    }
+    if (start.latitude === destination.latitude && start.longitude === destination.longitude) {
+      toast.error("Start and destination are the same place.");
+      return;
+    }
+
     try {
       setBusy(true);
+      const result = await navigationApi.routes(start, destination, {
+        travelMode: "car",
+        avoidTolls,
+        alternatives: 2,
+      });
 
-      const [resolvedStart, resolvedDestination] =
-        await Promise.all([
-          resolveSearch(startText, start),
-          resolveSearch(destinationText, destination),
-        ]);
-
-      if (!resolvedStart || !resolvedDestination) {
-        throw new Error(
-          "Starting point or destination could not be found.",
-        );
+      if (!result.length) {
+        toast.error("No route found between these places.");
+        return;
       }
-
-      setStart(resolvedStart);
-      setDestination(resolvedDestination);
-
-      const result = await navigationApi.routes(
-        resolvedStart,
-        resolvedDestination,
-        {
-          travelMode: "car",
-          avoidTolls,
-          alternatives: 2,
-        },
-      );
 
       setRoutes(result);
-      setSelectedRoute(result[0] ?? null);
+      setSelectedRoute(result[0]);
 
-      // Record the trip in offline history so it survives reloads / offline.
       const best = result[0];
-      if (best) {
-        void offlineDb.addHistory({
-          id: crypto.randomUUID(),
-          startName: startText || "Start",
-          destinationName: destinationText || "Destination",
-          distanceKm: Math.round((best.summary.lengthMeters / 1000) * 10) / 10,
-          durationMinutes: Math.round(best.summary.travelTimeSeconds / 60),
-          createdAt: new Date().toISOString(),
-        });
-      }
+      void offlineDb.addHistory({
+        id: crypto.randomUUID(),
+        startName: startText || "Start",
+        destinationName: destinationText || "Destination",
+        distanceKm: Math.round((best.summary.lengthMeters / 1000) * 10) / 10,
+        durationMinutes: Math.round(best.summary.travelTimeSeconds / 60),
+        createdAt: new Date().toISOString(),
+      });
 
-      toast.success("Traffic-aware routes are ready.");
+      toast.success("Route ready.");
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Route calculation failed.",
-      );
+      // Friendly message only; full error stays in the dev console.
+      if (import.meta.env.DEV) console.error("[route]", error);
+      toast.error(friendlyRouteError(error));
     } finally {
       setBusy(false);
     }
@@ -328,7 +350,7 @@ const MapPage = () => {
                 label="Starting point"
                 value={startText}
                 placeholder="Your location or any place"
-                bias={live.current}
+                bias={geo.coordinates ?? live.current}
                 onChange={(value) => {
                   setStartText(value);
                   setStart(null);
@@ -341,27 +363,19 @@ const MapPage = () => {
 
               <button
                 type="button"
-                onClick={() => {
-                  if (!live.current) {
-                    toast.error(
-                      "Start GPS tracking first to use your location.",
-                    );
-                    return;
-                  }
-                  setStart(live.current);
-                  setStartText("Your current location");
-                }}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-sm"
+                onClick={() => geo.getCurrentLocation()}
+                disabled={geo.loading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-sm disabled:opacity-60"
               >
                 <LocateFixed size={17} />
-                Use current GPS location
+                {geo.loading ? "Locating…" : "Use current GPS location"}
               </button>
 
               <SearchAutocomplete
                 label="Destination"
                 value={destinationText}
                 placeholder="Street, village, city or landmark"
-                bias={live.current}
+                bias={geo.coordinates ?? live.current}
                 onChange={(value) => {
                   setDestinationText(value);
                   setDestination(null);
@@ -381,6 +395,16 @@ const MapPage = () => {
                 onChange={(event) =>
                   setAvoidTolls(event.target.checked)
                 }
+                className="h-5 w-5 accent-cyan-500"
+              />
+            </label>
+
+            <label className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+              Show live traffic layer
+              <input
+                type="checkbox"
+                checked={showTraffic}
+                onChange={(event) => setShowTraffic(event.target.checked)}
                 className="h-5 w-5 accent-cyan-500"
               />
             </label>
@@ -592,6 +616,7 @@ const MapPage = () => {
               incidents={incidents}
               communityNotes={communityNotes}
               roadAlerts={roadAlerts}
+              showTraffic={showTraffic}
               onAlertSelect={setSelectedAlert}
               onBoundsChange={handleBoundsChange}
               onRouteSelect={setSelectedRoute}
