@@ -21,7 +21,7 @@ const Controller = ({ coordinates, route }: { coordinates: Coordinates | null; r
 };
 
 const WorldMap = ({ coordinates, routeCoordinates = [], start = null, destination = null }: Props) => (
-  <MapContainer center={[30.3753, 69.3451]} zoom={5} zoomControl={false} className="h-full min-h-[680px] w-full">
+  <MapContainer center={[25, 20]} zoom={3} zoomControl={false} className="h-full min-h-[680px] w-full">
     <ZoomControl position="bottomright" />
     <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
     <Controller coordinates={coordinates} route={routeCoordinates} />

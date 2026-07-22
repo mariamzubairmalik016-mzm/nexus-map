@@ -138,8 +138,8 @@ const NavigationMap = ({
 
   return (
     <MapContainer
-      center={[30.3753, 69.3451]}
-      zoom={5}
+      center={[25, 20]}
+      zoom={3}
       zoomControl={false}
       className="h-full min-h-[760px] w-full"
     >

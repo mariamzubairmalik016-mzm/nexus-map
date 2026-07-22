@@ -32,7 +32,6 @@ import {
 } from "../../types/roadAlerts";
 
 const DEMO_KEY = "nexus-include-demo";
-const DEFAULT_CENTER = { lat: 24.8607, lng: 67.0011 }; // Karachi fallback
 
 const SOURCE_MODES = [
   { key: "all", label: "All Sources" },
@@ -88,16 +87,16 @@ const RoadAlerts = () => {
   const load = async () => {
     try {
       setError("");
-      const lat = geo.coordinates?.latitude ?? DEFAULT_CENTER.lat;
-      const lng = geo.coordinates?.longitude ?? DEFAULT_CENTER.lng;
+      // Only query the live traffic provider when we have a real GPS location —
+      // never default to a fixed city. Community/admin/demo still load without it.
       const result = await roadAlertsService.list({
         severity: filterSeverity || undefined,
         status: filterStatus || undefined,
         source: source === "all" ? undefined : source,
         includeDemo: includeDemo || source === "demo",
-        lat,
-        lng,
-        radiusKm: 10,
+        lat: geo.coordinates?.latitude,
+        lng: geo.coordinates?.longitude,
+        radiusKm: geo.coordinates ? 10 : undefined,
       });
       setAlerts(result.alerts);
       setMeta(result.meta);

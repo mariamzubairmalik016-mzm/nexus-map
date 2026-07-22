@@ -46,9 +46,8 @@ const formatMinutes = (seconds: number) =>
 
 const MapPage = () => {
   const [searchParams] = useSearchParams();
-  const [startText, setStartText] = useState("Karachi");
-  const [destinationText, setDestinationText] =
-    useState("Lahore");
+  const [startText, setStartText] = useState("");
+  const [destinationText, setDestinationText] = useState("");
   const [start, setStart] = useState<Coordinates | null>(null);
   const [destination, setDestination] =
     useState<Coordinates | null>(null);

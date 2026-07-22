@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 
 import { offlineTileService, type OfflineArea } from "../../services/offlineTileService";
 import { offlineDb } from "../../services/offlineDb";
+import { navigationApi } from "../../services/navigationApi";
 import type { OfflinePlace } from "../../types/offline";
 import {
   formatBytes,
@@ -22,29 +23,6 @@ import {
   requestPersistentStorage,
   type StorageEstimateInfo,
 } from "../../services/storageManager";
-
-const knownLocations: Record<string, { latitude: number; longitude: number }> = {
-  karachi: { latitude: 24.8607, longitude: 67.0011 },
-  lahore: { latitude: 31.5204, longitude: 74.3587 },
-  islamabad: { latitude: 33.6844, longitude: 73.0479 },
-  hunza: { latitude: 36.3167, longitude: 74.65 },
-  "hunza valley": { latitude: 36.3167, longitude: 74.65 },
-  skardu: { latitude: 35.2971, longitude: 75.6333 },
-  peshawar: { latitude: 34.0151, longitude: 71.5249 },
-  quetta: { latitude: 30.1798, longitude: 66.975 },
-  multan: { latitude: 30.1575, longitude: 71.5249 },
-  dubai: { latitude: 25.2048, longitude: 55.2708 },
-  makkah: { latitude: 21.3891, longitude: 39.8579 },
-  london: { latitude: 51.5074, longitude: -0.1278 },
-};
-
-const getCoordinates = (location: string) => {
-  const clean = location.toLowerCase().trim();
-  const direct = knownLocations[clean];
-  if (direct) return direct;
-  const matchedKey = Object.keys(knownLocations).find((key) => clean.includes(key));
-  return matchedKey ? knownLocations[matchedKey] : { latitude: 30.3753, longitude: 69.3451 };
-};
 
 // Scope -> zoom range + tile radius. Kept modest to respect OSM tile usage and
 // keep downloads fast.
@@ -98,10 +76,26 @@ const OfflineMaps = () => {
     }
 
     const name = query.trim();
-    const coordinates = getCoordinates(name);
     const params = SCOPE_PARAMS[scope] ?? SCOPE_PARAMS.City;
+    const toastId = toast.loading(`Finding ${name}…`);
+
+    // Resolve ANY worldwide place via the search provider — no Pakistan fallback.
+    let coordinates: { latitude: number; longitude: number };
+    try {
+      const matches = await navigationApi.search(name);
+      const first = matches[0];
+      if (!first) {
+        toast.error(`Could not find “${name}”. Try a more specific place name.`, { id: toastId });
+        return;
+      }
+      coordinates = { latitude: first.position.latitude, longitude: first.position.longitude };
+    } catch {
+      toast.error("Location search needs an internet connection.", { id: toastId });
+      return;
+    }
+
     setQuery("");
-    const toastId = toast.loading(`Downloading ${name}…`);
+    toast.loading(`Downloading ${name}…`, { id: toastId });
 
     try {
       await offlineTileService.downloadArea(
@@ -187,7 +181,7 @@ const OfflineMaps = () => {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Karachi, Lahore, Hunza, Dubai..."
+                placeholder="Any city worldwide — London, Tokyo, Dubai, Hunza..."
                 className="mt-6 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 outline-none"
               />
 

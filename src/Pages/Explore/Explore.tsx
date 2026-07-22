@@ -146,7 +146,7 @@ const Explore = () => {
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="text-center"
         >
-          <p className="nexus-eyebrow">Pakistan and worldwide discovery</p>
+          <p className="nexus-eyebrow">Worldwide destination discovery</p>
           <h1 className="text-hero-display mt-4 text-5xl sm:text-6xl">
             Explore <span className="nexus-gradient-text">real destinations</span>
           </h1>
@@ -193,7 +193,7 @@ const Explore = () => {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search Karachi, Murree, Makkah, Dubai..."
+            placeholder="Search any city or place — Tokyo, Paris, Dubai, Hunza..."
             className="min-w-0 flex-1 bg-transparent py-4 outline-none"
           />
         </div>
