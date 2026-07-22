@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { HttpError } from "../utils/httpError.js";
+import { toNormalizedPlace, type NormalizedPlace } from "../types/place.js";
 
 const TOMTOM_BASE = "https://api.tomtom.com";
 
@@ -70,40 +71,45 @@ export const searchTomTom = async (
 
   const data = await fetchTomTom<SearchResponse>(url);
 
-  return data.results.map((result) => ({
-    id: result.id,
-    name:
-      result.poi?.name ||
-      result.address.freeformAddress ||
-      "Unknown place",
-    address:
-      result.address.freeformAddress ||
-      [
-        result.address.municipality,
-        result.address.country,
-      ]
-        .filter(Boolean)
-        .join(", "),
-    city: result.address.municipality,
-    province: result.address.countrySubdivision,
-    country: result.address.country,
-    countryCode: result.address.countryCode,
-    category: result.poi?.categories?.[0] || result.type,
-    score: result.score,
-    position: {
-      latitude: result.position.lat,
-      longitude: result.position.lon,
-    },
-  }));
+  // TomTom relevance is roughly 0..10 on this endpoint; normalize to 0..1 so
+  // every provider's score is on one comparable scale before ranking.
+  const normalizeScore = (raw: number) =>
+    Number.isFinite(raw) ? Math.max(0, Math.min(1, raw / 10)) : 0.5;
+
+  return data.results
+    .map((result) =>
+      toNormalizedPlace({
+        id: `tomtom-${result.id}`,
+        provider: "tomtom",
+        providerId: result.id,
+        name: result.poi?.name || result.address.freeformAddress,
+        address:
+          result.address.freeformAddress ||
+          [result.address.municipality, result.address.country].filter(Boolean).join(", "),
+        city: result.address.municipality,
+        province: result.address.countrySubdivision,
+        country: result.address.country,
+        countryCode: result.address.countryCode,
+        category: result.poi?.categories?.[0] || result.type,
+        score: normalizeScore(result.score),
+        lat: result.position.lat,
+        lng: result.position.lon,
+      }),
+    )
+    // Drop anything without usable coordinates rather than inventing a fallback.
+    .filter((place): place is NormalizedPlace => place !== null);
 };
 
 export const calculateTomTomRoutes = async (input: {
   start: { latitude: number; longitude: number };
   destination: { latitude: number; longitude: number };
   travelMode: string;
+  routeType?: string;
   avoidTolls: boolean;
+  avoidFerries?: boolean;
   alternatives: number;
 }) => {
+  // Coordinates only — never a provider place id or free text.
   const routePoints =
     `${input.start.latitude},${input.start.longitude}:` +
     `${input.destination.latitude},${input.destination.longitude}`;
@@ -112,7 +118,7 @@ export const calculateTomTomRoutes = async (input: {
     key: env.TOMTOM_API_KEY,
     traffic: "true",
     travelMode: input.travelMode,
-    routeType: "fastest",
+    routeType: input.routeType || "fastest",
     instructionsType: "text",
     language: "en-GB",
     computeTravelTimeFor: "all",
@@ -122,9 +128,9 @@ export const calculateTomTomRoutes = async (input: {
     ),
   });
 
-  if (input.avoidTolls) {
-    params.set("avoid", "tollRoads");
-  }
+  // `avoid` is repeatable on the TomTom routing API — append, don't overwrite.
+  if (input.avoidTolls) params.append("avoid", "tollRoads");
+  if (input.avoidFerries) params.append("avoid", "ferries");
 
   const url =
     `${TOMTOM_BASE}/routing/1/calculateRoute/` +

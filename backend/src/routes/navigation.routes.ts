@@ -10,24 +10,13 @@ import {
 import { searchGeoCatalog } from "../services/geoCatalog.service.js";
 import { searchGeoapify } from "../services/geoapify.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import type { NormalizedPlace } from "../types/place.js";
+import { isInPakistan, rankPlaces, resultsAreWeak } from "../services/placeRanking.js";
 
 export const navigationRouter = Router();
 
-type SearchItem = {
-  id: string;
-  name: string;
-  address: string;
-  city?: string;
-  province?: string;
-  country?: string;
-  countryCode?: string;
-  category?: string;
-  position: { latitude: number; longitude: number };
-  source?: string;
-  score?: number;
-};
-
-const PK_BBOX = { minLat: 23, maxLat: 37, minLon: 60, maxLon: 78 };
+/** A place name the user never means literally — it must not reach a provider. */
+const NON_SEARCHABLE = new Set(["current location", "my location", "your location"]);
 
 navigationRouter.get(
   "/search",
@@ -36,76 +25,61 @@ navigationRouter.get(
     const lat = request.query.lat ? Number(request.query.lat) : undefined;
     const lon = request.query.lon ? Number(request.query.lon) : undefined;
 
-    // Pakistan-priority mode: when the search is biased inside Pakistan, run an
-    // extra countrySet=PK pass and boost Pakistan results in ranking. Global
-    // searches (Dubai, London…) still win via raw provider score.
-    const inPakistan =
-      Number.isFinite(lat) &&
-      Number.isFinite(lon) &&
-      (lat as number) >= PK_BBOX.minLat &&
-      (lat as number) <= PK_BBOX.maxLat &&
-      (lon as number) >= PK_BBOX.minLon &&
-      (lon as number) <= PK_BBOX.maxLon;
-
-    // TomTom stays the primary/worldwide provider. Inside Pakistan we add a
-    // TomTom PK pass AND a Geoapify PK pass (Geoapify has far better OSM POI
-    // coverage for local malls/institutes TomTom lacks). Each is best-effort.
-    const empty = Promise.resolve([] as SearchItem[]);
-    const [catalog, worldwide, pkTomTom, pkGeoapify] = await Promise.all([
-      (searchGeoCatalog(query, 8) as Promise<SearchItem[]>).catch(() => [] as SearchItem[]),
-      (searchTomTom(query, lat, lon) as Promise<SearchItem[]>).catch(() => [] as SearchItem[]),
-      inPakistan ? (searchTomTom(query, lat, lon, "PK") as Promise<SearchItem[]>).catch(() => [] as SearchItem[]) : empty,
-      inPakistan ? (searchGeoapify(query, lat, lon, "pk") as Promise<SearchItem[]>).catch(() => [] as SearchItem[]) : empty,
-    ]);
-
-    const all: SearchItem[] = [
-      // All scores are on a ~0..1 relevance scale.
-      ...catalog.map((c) => ({ ...c, source: "supabase", score: c.score ?? 0.7 })),
-      ...worldwide.map((t) => ({ ...t, source: "tomtom" })),
-      ...pkTomTom.map((t) => ({ ...t, source: "tomtom" })),
-      ...pkGeoapify, // already tagged source: "geoapify" and scored
-    ];
-
-    // De-duplicate, keeping the higher-scoring copy.
-    const unique = new Map<string, SearchItem>();
-    for (const item of all) {
-      const key = `${item.name.toLowerCase()}-${item.position.latitude.toFixed(3)}-${item.position.longitude.toFixed(3)}`;
-      const existing = unique.get(key);
-      if (!existing || (item.score ?? 0) > (existing.score ?? 0)) unique.set(key, item);
+    // "Current Location" is a UI label, not a place. Never send it upstream.
+    if (NON_SEARCHABLE.has(query.trim().toLowerCase())) {
+      response.json({ success: true, data: [] });
+      return;
     }
 
-    // TomTom is the PRIMARY provider. Supplementary providers (Geoapify /
-    // catalog) may only OUTRANK TomTom when TomTom itself is weak — i.e. its
-    // best match is low-relevance (the niche-PK-POI case). When TomTom has a
-    // decent match (a real city/place), it leads and Geoapify is capped just
-    // below it. This keeps global search correct (Tokyo, Sydney, London) while
-    // still surfacing Pakistani POIs TomTom lacks (Lucky One Mall, Dolmen Mall).
-    const tomtomBest = all.reduce((m, r) => (r.source === "tomtom" ? Math.max(m, r.score ?? 0) : m), 0);
-    const geoapifyMayLead = tomtomBest < 0.5;
-    const effective = (r: SearchItem) => {
-      const s = r.score ?? 0;
-      if (r.source === "tomtom") return s * 1.1;
-      return geoapifyMayLead ? s : Math.min(s, tomtomBest * 0.95);
+    const bias = {
+      lat: Number.isFinite(lat) ? lat : undefined,
+      lon: Number.isFinite(lon) ? lon : undefined,
     };
-    const ranked = [...unique.values()].sort((a, b) => effective(b) - effective(a)).slice(0, 12);
+    const biasInPakistan = isInPakistan(bias.lat, bias.lon);
+
+    const never = <T>(promise: Promise<T[]>) => promise.catch(() => [] as T[]);
+    const empty = Promise.resolve([] as NormalizedPlace[]);
+
+    // TomTom is the PRIMARY provider and always runs worldwide. Inside Pakistan
+    // we add a countrySet=PK TomTom pass plus a Geoapify PK pass, because
+    // Geoapify's OSM data covers local malls/institutes TomTom lacks.
+    const [catalog, worldwide, pkTomTom, pkGeoapify] = await Promise.all([
+      never(searchGeoCatalog(query, 8)),
+      never(searchTomTom(query, bias.lat, bias.lon)),
+      biasInPakistan ? never(searchTomTom(query, bias.lat, bias.lon, "PK")) : empty,
+      biasInPakistan ? never(searchGeoapify(query, bias.lat, bias.lon, "pk")) : empty,
+    ]);
+
+    let all: NormalizedPlace[] = [...catalog, ...worldwide, ...pkTomTom, ...pkGeoapify];
+
+    // Worldwide fallback: if nothing so far actually matches what was typed
+    // (no results, or only weak/foreign partial matches), ask Geoapify without
+    // a country filter. This is the "TomTom gave no/poor results" branch and
+    // costs an extra call only when the first pass was unsatisfying.
+    if (resultsAreWeak(all, { query, ...bias })) {
+      const fallback = await never(searchGeoapify(query, bias.lat, bias.lon));
+      all = [...all, ...fallback];
+    }
+
+    const ranked = rankPlaces(all, { query, ...bias }, 12);
 
     response.json({ success: true, data: ranked });
   }),
 );
+
+/** Coordinates only — a finite, in-range lat/lng pair. Nothing else routes. */
+const coordinateSchema = z.object({
+  latitude: z.number().finite().min(-90).max(90),
+  longitude: z.number().finite().min(-180).max(180),
+});
 
 navigationRouter.post(
   "/routes",
   asyncHandler(async (request, response) => {
     const body = z
       .object({
-        start: z.object({
-          latitude: z.number(),
-          longitude: z.number(),
-        }),
-        destination: z.object({
-          latitude: z.number(),
-          longitude: z.number(),
-        }),
+        start: coordinateSchema,
+        destination: coordinateSchema,
         travelMode: z
           .enum([
             "car",
@@ -118,13 +92,29 @@ navigationRouter.post(
             "pedestrian",
           ])
           .default("car"),
+        routeType: z.enum(["fastest", "shortest", "eco", "thrilling"]).default("fastest"),
         avoidTolls: z.boolean().default(false),
+        avoidFerries: z.boolean().default(false),
         alternatives: z
           .number()
           .int()
           .min(0)
           .max(5)
           .default(2),
+      })
+      .superRefine((value, context) => {
+        // Routing identical points wastes a provider call and returns nothing
+        // useful — reject it here with a message the UI can show verbatim.
+        if (
+          value.start.latitude === value.destination.latitude &&
+          value.start.longitude === value.destination.longitude
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: "Start and destination are the same place.",
+            path: ["destination"],
+          });
+        }
       })
       .parse(request.body);
 
