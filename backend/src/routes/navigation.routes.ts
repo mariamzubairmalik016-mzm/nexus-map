@@ -8,6 +8,7 @@ import {
   searchTomTom,
 } from "../services/tomtom.service.js";
 import { searchGeoCatalog } from "../services/geoCatalog.service.js";
+import { searchGeoapify } from "../services/geoapify.service.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const navigationRouter = Router();
@@ -51,20 +52,23 @@ navigationRouter.get(
       (lon as number) >= PK_BBOX.minLon &&
       (lon as number) <= PK_BBOX.maxLon;
 
-    const tasks: Promise<SearchItem[]>[] = [
-      searchGeoCatalog(query, 8) as Promise<SearchItem[]>,
-      searchTomTom(query, lat, lon) as Promise<SearchItem[]>,
-    ];
-    if (inPakistan) tasks.push(searchTomTom(query, lat, lon, "PK") as Promise<SearchItem[]>);
-
-    const settled = await Promise.allSettled(tasks);
-    const get = (i: number) => (settled[i]?.status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<SearchItem[]>).value : []);
+    // TomTom stays the primary/worldwide provider. Inside Pakistan we add a
+    // TomTom PK pass AND a Geoapify PK pass (Geoapify has far better OSM POI
+    // coverage for local malls/institutes TomTom lacks). Each is best-effort.
+    const empty = Promise.resolve([] as SearchItem[]);
+    const [catalog, worldwide, pkTomTom, pkGeoapify] = await Promise.all([
+      (searchGeoCatalog(query, 8) as Promise<SearchItem[]>).catch(() => [] as SearchItem[]),
+      (searchTomTom(query, lat, lon) as Promise<SearchItem[]>).catch(() => [] as SearchItem[]),
+      inPakistan ? (searchTomTom(query, lat, lon, "PK") as Promise<SearchItem[]>).catch(() => [] as SearchItem[]) : empty,
+      inPakistan ? (searchGeoapify(query, lat, lon, "pk") as Promise<SearchItem[]>).catch(() => [] as SearchItem[]) : empty,
+    ]);
 
     const all: SearchItem[] = [
       // Curated catalog gets a solid baseline relevance.
-      ...get(0).map((c) => ({ ...c, source: "supabase", score: c.score ?? 6 })),
-      ...get(1).map((t) => ({ ...t, source: "tomtom" })),
-      ...(inPakistan ? get(2).map((t) => ({ ...t, source: "tomtom" })) : []),
+      ...catalog.map((c) => ({ ...c, source: "supabase", score: c.score ?? 6 })),
+      ...worldwide.map((t) => ({ ...t, source: "tomtom" })),
+      ...pkTomTom.map((t) => ({ ...t, source: "tomtom" })),
+      ...pkGeoapify, // already tagged source: "geoapify" and scored
     ];
 
     // De-duplicate, keeping the higher-scoring copy.

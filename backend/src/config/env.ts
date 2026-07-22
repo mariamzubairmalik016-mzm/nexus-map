@@ -36,6 +36,11 @@ const schema = z.object({
     .string()
     .optional()
     .or(z.literal("")),
+
+  GEOAPIFY_API_KEY: z
+    .string()
+    .optional()
+    .or(z.literal("")),
 });
 
 export const env = schema.parse(process.env);
@@ -46,3 +51,5 @@ export const databaseConfigured = Boolean(
 );
 
 export const aiConfigured = Boolean(env.OPENAI_API_KEY);
+
+export const geoapifyConfigured = Boolean(env.GEOAPIFY_API_KEY);
