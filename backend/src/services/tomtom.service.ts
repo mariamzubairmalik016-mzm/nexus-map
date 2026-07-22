@@ -21,6 +21,7 @@ export const searchTomTom = async (
   query: string,
   lat?: number,
   lon?: number,
+  countrySet?: string,
 ) => {
   const params = new URLSearchParams({
     key: env.TOMTOM_API_KEY,
@@ -40,6 +41,9 @@ export const searchTomTom = async (
     params.set("lon", String(lon));
   }
 
+  // Optional country filter (e.g. "PK") for a Pakistan-priority pass.
+  if (countrySet) params.set("countrySet", countrySet);
+
   const url =
     `${TOMTOM_BASE}/search/2/search/` +
     `${encodeURIComponent(query)}.json?${params.toString()}`;
@@ -53,7 +57,9 @@ export const searchTomTom = async (
       address: {
         freeformAddress?: string;
         municipality?: string;
+        countrySubdivision?: string;
         country?: string;
+        countryCode?: string;
       };
       poi?: {
         name?: string;
@@ -79,8 +85,11 @@ export const searchTomTom = async (
         .filter(Boolean)
         .join(", "),
     city: result.address.municipality,
+    province: result.address.countrySubdivision,
     country: result.address.country,
+    countryCode: result.address.countryCode,
     category: result.poi?.categories?.[0] || result.type,
+    score: result.score,
     position: {
       latitude: result.position.lat,
       longitude: result.position.lon,
