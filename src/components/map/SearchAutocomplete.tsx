@@ -71,6 +71,13 @@ const SearchAutocomplete = ({
 
   const query = value.trim();
 
+  // Depend on the bias VALUES, not the object identity — otherwise a parent
+  // re-render (or a map pan) would restart every in-flight search.
+  const biasLat = bias?.latitude;
+  const biasLng = bias?.longitude;
+  const biasRef = useRef(bias);
+  biasRef.current = bias;
+
   // Debounced search with abort of any stale in-flight request.
   useEffect(() => {
     // A selection just filled the input — don't immediately search for it.
@@ -95,7 +102,7 @@ const SearchAutocomplete = ({
     setError("");
 
     const timer = window.setTimeout(() => {
-      searchPlaces(query, bias, controller.signal)
+      searchPlaces(query, biasRef.current, controller.signal)
         .then((outcome) => {
           if (controller.signal.aborted) return;
           setSuggestions(outcome.results);
@@ -120,7 +127,7 @@ const SearchAutocomplete = ({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [bias, query]);
+  }, [biasLat, biasLng, query]);
 
   // Abort any in-flight request when the component goes away.
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -149,8 +156,11 @@ const SearchAutocomplete = ({
   const choose = useCallback(
     (suggestion: SearchSuggestion) => {
       skipNextSearch.current = true;
-      onSelect(suggestion);
+      // onChange FIRST, then onSelect. The parent treats every onChange as
+      // manual editing and clears its confirmed selection, so calling it after
+      // onSelect would immediately wipe the pick we just made.
       onChange(suggestion.displayName ?? suggestion.name);
+      onSelect(suggestion);
       void rememberSearch(query || suggestion.name, suggestion);
       setOpen(false);
       setActiveIndex(-1);

@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react";
 
 import { appEnv } from "../../config/appEnv";
 import { buildMapStyle, TRAFFIC_TILE_TEMPLATE } from "../../config/mapStyle";
+import { getInitialView, writeSavedView } from "../../config/mapView";
 import type {
   CommunityNote,
   Coordinates,
@@ -35,8 +36,6 @@ const ROUTE_CASING_LAYER = "nexus-routes-casing";
 const ROUTE_LINE_LAYER = "nexus-routes-line";
 const TRAFFIC_SOURCE = "nexus-traffic";
 const TRAFFIC_LAYER = "nexus-traffic-layer";
-const SAVED_VIEW_KEY = "nexus-map-last-view";
-
 const SEVERITY_COLOR: Record<string, string> = {
   low: "#34d399",
   medium: "#fbbf24",
@@ -47,21 +46,38 @@ const SEVERITY_COLOR: Record<string, string> = {
 /** Coarser grid when zoomed out -> fewer, bigger alert clusters. */
 const gridPrecision = (zoom: number) => (zoom < 7 ? 1 : zoom < 9 ? 0.5 : 0.25);
 
-type SavedView = { lng: number; lat: number; zoom: number };
-
-const readSavedView = (): SavedView | null => {
-  try {
-    const raw = localStorage.getItem(SAVED_VIEW_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as SavedView;
-    return Number.isFinite(parsed.lng) && Number.isFinite(parsed.lat) ? parsed : null;
-  } catch {
-    return null;
-  }
-};
-
 const isUsable = (point: Coordinates | null | undefined): point is Coordinates =>
   !!point && Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
+
+/**
+ * Runs a style operation (addSource/addLayer/setData) as soon as the style can
+ * accept it.
+ *
+ * We deliberately do NOT gate on `load` / `idle` / `isStyleLoaded()`: those
+ * proved unreliable here — with a slow raster tile server the map is fully
+ * interactive and rendering long before `load` fires, and gating on it left
+ * routes and markers permanently undrawn. Instead we simply try, and retry on
+ * the next `styledata` if the style was not ready yet. Returns a cleanup that
+ * cancels a pending retry.
+ */
+const whenStyleReady = (map: maplibregl.Map, operation: () => void): (() => void) => {
+  const attempt = () => {
+    try {
+      operation();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (attempt()) return () => {};
+
+  const retry = () => {
+    if (attempt()) map.off("styledata", retry);
+  };
+  map.on("styledata", retry);
+  return () => map.off("styledata", retry);
+};
 
 /** Builds a DOM element for a marker without going through React rendering. */
 const createElement = (html: string, className = "") => {
@@ -118,12 +134,23 @@ const MapLibreMap = ({
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
-    const saved = readSavedView();
+    // Each map gets its OWN element inside the React-owned container. React
+    // StrictMode mounts, unmounts and remounts this effect in development; if
+    // both instances shared one container, the second map would be created
+    // into a div still holding the first map's canvas and would never receive
+    // its style. Removing this element in cleanup is guaranteed to work even
+    // if maplibre's own remove() throws mid-initialisation.
+    const host = document.createElement("div");
+    host.style.width = "100%";
+    host.style.height = "100%";
+    containerRef.current.appendChild(host);
+
+    const initial = getInitialView();
     const map = new maplibregl.Map({
-      container: containerRef.current,
+      container: host,
       style: buildMapStyle(),
-      center: saved ? [saved.lng, saved.lat] : [appEnv.defaultCenter.lng, appEnv.defaultCenter.lat],
-      zoom: saved?.zoom ?? appEnv.defaultCenter.zoom,
+      center: [initial.lng, initial.lat],
+      zoom: initial.zoom,
       attributionControl: { compact: true },
     });
 
@@ -132,30 +159,50 @@ const MapLibreMap = ({
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 90, unit: "metric" }), "bottom-left");
 
+    // Defensive: getBounds() can throw while the style is still attaching.
+    // This runs from event handlers and an animation frame, where an uncaught
+    // throw would silently kill the rest of that callback.
     const emitBounds = () => {
-      const bounds = map.getBounds();
-      boundsCallback.current({
-        west: bounds.getWest(),
-        south: bounds.getSouth(),
-        east: bounds.getEast(),
-        north: bounds.getNorth(),
-      });
-      const center = map.getCenter();
       try {
-        localStorage.setItem(
-          SAVED_VIEW_KEY,
-          JSON.stringify({ lng: center.lng, lat: center.lat, zoom: map.getZoom() }),
-        );
+        const bounds = map.getBounds();
+        boundsCallback.current({
+          west: bounds.getWest(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          north: bounds.getNorth(),
+        });
+        const center = map.getCenter();
+        writeSavedView({ lng: center.lng, lat: center.lat, zoom: map.getZoom() });
       } catch {
-        /* private mode / quota — a saved view is a nicety, not a requirement */
+        /* map not ready yet — a later moveend/load will emit real bounds */
       }
     };
 
-    map.on("load", () => {
+    // Emit bounds on the next frame rather than waiting for `load`/`idle`:
+    // center and zoom are known as soon as the map exists, and search biasing
+    // must not wait for tiles to download (on a slow tile server that is many
+    // seconds, during which every search would go out unbiased). Deferred by a
+    // frame so it never runs in the middle of map construction.
+    // A timer, NOT requestAnimationFrame: rAF does not fire in a backgrounded
+    // or unpainted tab, which would leave the map permanently "not ready" and
+    // its routes and markers undrawn. Timers still run there.
+    const initialBounds = window.setTimeout(() => {
+      // The map is usable now: markers can be added, and layer work is retried
+      // by whenStyleReady until the style accepts it. Waiting for `load` here
+      // would leave routes and markers undrawn whenever tiles are slow.
+      // Set this BEFORE emitting bounds so nothing can prevent it.
       setReady(true);
       emitBounds();
-    });
+    }, 0);
+
+    map.on("load", emitBounds);
+    map.once("idle", emitBounds);
     map.on("moveend", emitBounds);
+
+    // Exposed in development only, to inspect map state from the console.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __nexusMap?: maplibregl.Map }).__nexusMap = map;
+    }
     map.on("zoom", () => setZoom(map.getZoom()));
 
     // A failed tile is normal (offline, or outside coverage) and must not blank
@@ -167,10 +214,22 @@ const MapLibreMap = ({
     });
 
     return () => {
+      // Clear the ref FIRST. maplibre's remove() can throw when the map is
+      // torn down before its style finished loading (which is exactly what
+      // React StrictMode's mount/unmount/mount does in development). If that
+      // throw skipped this assignment, the remount would early-return and the
+      // app would be left with a half-destroyed map that renders tiles but
+      // never fires load/idle/moveend.
+      mapRef.current = null;
+      window.clearTimeout(initialBounds);
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
-      map.remove();
-      mapRef.current = null;
+      try {
+        map.remove();
+      } catch {
+        /* already partially torn down — the host removal below still cleans up */
+      }
+      host.remove();
       setReady(false);
     };
   }, []);
@@ -201,48 +260,50 @@ const MapLibreMap = ({
     const map = mapRef.current;
     if (!map || !ready) return;
 
-    const existing = map.getSource(ROUTE_SOURCE) as maplibregl.GeoJSONSource | undefined;
-    if (existing) {
-      existing.setData(routeGeoJson);
-      return;
-    }
+    return whenStyleReady(map, () => {
+      const existing = map.getSource(ROUTE_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (existing) {
+        existing.setData(routeGeoJson);
+        return;
+      }
 
-    map.addSource(ROUTE_SOURCE, { type: "geojson", data: routeGeoJson });
-    map.addLayer({
-      id: ROUTE_CASING_LAYER,
-      type: "line",
-      source: ROUTE_SOURCE,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": "#020617",
-        "line-width": ["case", ["==", ["get", "selected"], 1], 11, 7],
-        "line-opacity": 0.55,
-      },
-    });
-    map.addLayer({
-      id: ROUTE_LINE_LAYER,
-      type: "line",
-      source: ROUTE_SOURCE,
-      layout: { "line-cap": "round", "line-join": "round" },
-      paint: {
-        "line-color": ["case", ["==", ["get", "selected"], 1], "#22d3ee", "#64748b"],
-        "line-width": ["case", ["==", ["get", "selected"], 1], 6, 4],
-        "line-opacity": ["case", ["==", ["get", "selected"], 1], 0.95, 0.65],
-      },
-    });
+      map.addSource(ROUTE_SOURCE, { type: "geojson", data: routeGeoJson });
+      map.addLayer({
+        id: ROUTE_CASING_LAYER,
+        type: "line",
+        source: ROUTE_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#020617",
+          "line-width": ["case", ["==", ["get", "selected"], 1], 11, 7],
+          "line-opacity": 0.55,
+        },
+      });
+      map.addLayer({
+        id: ROUTE_LINE_LAYER,
+        type: "line",
+        source: ROUTE_SOURCE,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["case", ["==", ["get", "selected"], 1], "#22d3ee", "#64748b"],
+          "line-width": ["case", ["==", ["get", "selected"], 1], 6, 4],
+          "line-opacity": ["case", ["==", ["get", "selected"], 1], 0.95, 0.65],
+        },
+      });
 
-    const handleRouteClick = (event: MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-      const routeId = event.features?.[0]?.properties?.routeId;
-      if (!routeId) return;
-      const match = alternatives.find((route) => route.id === routeId);
-      if (match) routeCallback.current(match);
-    };
-    map.on("click", ROUTE_LINE_LAYER, handleRouteClick);
-    map.on("mouseenter", ROUTE_LINE_LAYER, () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
-    map.on("mouseleave", ROUTE_LINE_LAYER, () => {
-      map.getCanvas().style.cursor = "";
+      const handleRouteClick = (event: MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+        const routeId = event.features?.[0]?.properties?.routeId;
+        if (!routeId) return;
+        const match = alternatives.find((route) => route.id === routeId);
+        if (match) routeCallback.current(match);
+      };
+      map.on("click", ROUTE_LINE_LAYER, handleRouteClick);
+      map.on("mouseenter", ROUTE_LINE_LAYER, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", ROUTE_LINE_LAYER, () => {
+        map.getCanvas().style.cursor = "";
+      });
     });
   }, [alternatives, ready, routeGeoJson]);
 

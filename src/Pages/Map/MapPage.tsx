@@ -32,6 +32,7 @@ import AlertDetailPanel from "../../components/map/AlertDetailPanel";
 import { useLiveNavigation } from "../../hooks/useLiveNavigation";
 import { useGeolocation, currentLocationSuggestion } from "../../hooks/useGeolocation";
 import { useInternetStatus } from "../../hooks/useInternetStatus";
+import { getInitialCenter } from "../../config/mapView";
 import type { RoadAlert } from "../../types/roadAlerts";
 import type { RouteType, SavedRoute, TravelMode } from "../../types/savedRoute";
 
@@ -72,6 +73,13 @@ type Bounds = {
 const formatMinutes = (seconds: number) =>
   `${Math.max(1, Math.round(seconds / 60))} min`;
 
+/**
+ * Largest map span (in degrees) we will request traffic incidents for. The
+ * provider returns 400 for continent-sized bounding boxes, and incidents are
+ * only meaningful once the user has zoomed into a city anyway.
+ */
+const MAX_INCIDENT_SPAN_DEGREES = 2;
+
 const MapPage = () => {
   const [searchParams] = useSearchParams();
   const online = useInternetStatus();
@@ -100,6 +108,7 @@ const MapPage = () => {
   const [avoidTolls, setAvoidTolls] = useState(false);
   const [avoidFerries, setAvoidFerries] = useState(false);
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+  const [mapCenter, setMapCenter] = useState<Coordinates | null>(null);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<string[]>([
     "Nexus AI: Select a route and ask about ETA, traffic, destination or road conditions.",
@@ -114,6 +123,16 @@ const MapPage = () => {
   const live = useLiveNavigation();
   const geo = useGeolocation();
   const activeRoute = live.activeRoute ?? selectedRoute;
+
+  /**
+   * Where search results are biased towards: the user's GPS fix when we have
+   * one, then the live tracking position, then wherever the map is currently
+   * pointed, and finally the map's initial view (the user's last saved view,
+   * or the configured default centre). The last fallback matters because it is
+   * available on the very first render — waiting for the map to report bounds
+   * would let early searches go out unbiased. No hardcoded city anywhere.
+   */
+  const searchBias = geo.coordinates ?? live.current ?? mapCenter ?? getInitialCenter();
 
   /**
    * GPS button. Calls the browser Geolocation API directly — no backend, no
@@ -380,9 +399,28 @@ const MapPage = () => {
 
   const handleBoundsChange = useCallback(
     (bounds: Bounds) => {
+      // Bias search to what the user is actually looking at. Without this,
+      // searching "Lucky One Mall Karachi" with no GPS permission returns
+      // same-named places abroad. This is the map's real centre — never a
+      // hardcoded city.
+      setMapCenter({
+        latitude: (bounds.north + bounds.south) / 2,
+        longitude: (bounds.east + bounds.west) / 2,
+      });
+
       // Traffic incidents and community notes are OPTIONAL live layers —
       // never requested while offline, so panning offline makes no calls.
       if (networkStatus.isOffline()) return;
+
+      // The incidents API rejects very large areas with a 400. Asking for a
+      // whole country's incidents is pointless anyway, so skip the call rather
+      // than let it fail on every pan at low zoom.
+      const spanDegrees = Math.max(bounds.north - bounds.south, bounds.east - bounds.west);
+      if (spanDegrees > MAX_INCIDENT_SPAN_DEGREES) {
+        setIncidents([]);
+        setCommunityNotes([]);
+        return;
+      }
 
       void Promise.all([
         navigationApi.trafficIncidents(
@@ -472,7 +510,7 @@ const MapPage = () => {
                 label="Starting point"
                 value={startQuery}
                 placeholder="Your location or any place"
-                bias={geo.coordinates ?? live.current}
+                bias={searchBias}
                 selected={Boolean(selectedStart)}
                 onChange={(value) => {
                   setStartQuery(value);
@@ -503,7 +541,7 @@ const MapPage = () => {
                 label="Destination"
                 value={destinationQuery}
                 placeholder="Street, village, city or landmark"
-                bias={geo.coordinates ?? live.current}
+                bias={searchBias}
                 selected={Boolean(selectedDestination)}
                 onChange={(value) => {
                   setDestinationQuery(value);
