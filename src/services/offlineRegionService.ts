@@ -232,6 +232,28 @@ export const offlineRegionService = {
     return region;
   },
 
+  /**
+   * The downloaded region whose bounds contain this point, if any. Used to
+   * tell the user honestly whether the area they are standing in is available
+   * offline.
+   */
+  findRegionCovering: async (
+    latitude: number,
+    longitude: number,
+  ): Promise<OfflineRegion | null> => {
+    const regions = await offlineDb.getRegions().catch(() => [] as OfflineRegion[]);
+    return (
+      regions.find(
+        (region) =>
+          region.status === "downloaded" &&
+          latitude <= region.bounds.north &&
+          latitude >= region.bounds.south &&
+          longitude <= region.bounds.east &&
+          longitude >= region.bounds.west,
+      ) ?? null
+    );
+  },
+
   /** True when every tile of the region is present in the cache. */
   isFullyCached: async (region: OfflineRegion): Promise<boolean> => {
     if (!("caches" in window)) return false;

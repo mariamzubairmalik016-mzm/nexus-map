@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -28,6 +28,7 @@ import { offlineDb } from "../../services/offlineDb";
 import { roadAlertsService } from "../../services/roadAlertsService";
 import { networkStatus } from "../../services/networkStatus";
 import { savedRouteService, savedRouteToAlternative } from "../../services/savedRouteService";
+import { offlineRegionService } from "../../services/offlineRegionService";
 import AlertDetailPanel from "../../components/map/AlertDetailPanel";
 import { useLiveNavigation } from "../../hooks/useLiveNavigation";
 import { useGeolocation, currentLocationSuggestion } from "../../hooks/useGeolocation";
@@ -109,6 +110,7 @@ const MapPage = () => {
   const [avoidFerries, setAvoidFerries] = useState(false);
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [mapCenter, setMapCenter] = useState<Coordinates | null>(null);
+  const [recenterRequest, setRecenterRequest] = useState(0);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<string[]>([
     "Nexus AI: Select a route and ask about ETA, traffic, destination or road conditions.",
@@ -135,9 +137,27 @@ const MapPage = () => {
   const searchBias = geo.coordinates ?? live.current ?? mapCenter ?? getInitialCenter();
 
   /**
+   * Adopts a GPS fix as the starting point. Only overwrites the start when the
+   * user has not already chosen one, so an automatic fix arriving late can
+   * never replace a place they deliberately picked.
+   */
+  const selectedStartRef = useRef<SearchSuggestion | null>(null);
+  selectedStartRef.current = selectedStart;
+
+  const adoptGpsAsStart = useCallback((coordinates: Coordinates, { force = false } = {}) => {
+    // Read the current selection from a ref, not inside a state updater —
+    // updaters must stay pure, and a setState nested in one is dropped.
+    const current = selectedStartRef.current;
+    if (current && !force && current.id !== "current-location") return;
+
+    setSelectedStart(currentLocationSuggestion(coordinates));
+    setStartQuery("Current Location");
+  }, []);
+
+  /**
    * GPS button. Calls the browser Geolocation API directly — no backend, no
    * tracking mode — and makes the fix the selected start point so a route can
-   * be generated immediately.
+   * be generated immediately. Explicit, so it overrides any existing start.
    */
   const useCurrentLocation = async () => {
     const coordinates = await geo.getCurrentLocation();
@@ -145,10 +165,61 @@ const MapPage = () => {
       toast.error(geo.error || "Unable to detect your location.");
       return;
     }
-    setSelectedStart(currentLocationSuggestion(coordinates));
-    setStartQuery("Current Location");
+    adoptGpsAsStart(coordinates, { force: true });
+    // Explicit request — recentre even if the user has panned the map since.
+    setRecenterRequest((count) => count + 1);
     toast.success("Using your current location.");
   };
+
+  /**
+   * On opening the map, ask for GPS once. Granted -> the map centres on the
+   * real position and "Current Location" becomes the start point. Denied or
+   * unavailable -> the map stays on the last saved view (or the configured
+   * default) and we explain why, rather than jumping somewhere arbitrary.
+   *
+   * This is getCurrentPosition only. Continuous watchPosition tracking is
+   * started exclusively by the user pressing Start Navigation.
+   */
+  const autoLocateDone = useRef(false);
+  useEffect(() => {
+    if (autoLocateDone.current) return;
+    autoLocateDone.current = true;
+
+    void geo.getCurrentLocation().then((coordinates) => {
+      if (coordinates) adoptGpsAsStart(coordinates);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * If permission is granted later (the user flips it in site settings while
+   * the page is open), pick the fix up automatically instead of making them
+   * reload.
+   */
+  useEffect(() => {
+    if (!("permissions" in navigator)) return;
+    let status: PermissionStatus | null = null;
+
+    const onChange = () => {
+      if (status?.state !== "granted") return;
+      void geo.getCurrentLocation().then((coordinates) => {
+        if (coordinates) adoptGpsAsStart(coordinates);
+      });
+    };
+
+    navigator.permissions
+      .query({ name: "geolocation" as PermissionName })
+      .then((result) => {
+        status = result;
+        result.addEventListener("change", onChange);
+      })
+      .catch(() => {
+        /* Permissions API unsupported — the GPS button still works */
+      });
+
+    return () => status?.removeEventListener("change", onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadAlerts = useCallback(async () => {
     // Offline: never poll a live endpoint. The cached alerts already on screen
@@ -186,6 +257,24 @@ const MapPage = () => {
   useEffect(() => {
     void savedRouteService.list().then(setSavedRoutes);
   }, []);
+
+  /**
+   * Offline, GPS still works and the map still centres on the real position —
+   * but the tiles for that area only exist if a region covering it was
+   * downloaded. Check, and say so plainly rather than showing a blank map.
+   */
+  const [offlineCoverage, setOfflineCoverage] = useState<"unknown" | "covered" | "missing">("unknown");
+  useEffect(() => {
+    const position = geo.coordinates ?? live.current;
+    if (online || !position) {
+      setOfflineCoverage("unknown");
+      return;
+    }
+    void offlineRegionService
+      .findRegionCovering(position.latitude, position.longitude)
+      .then((region) => setOfflineCoverage(region ? "covered" : "missing"))
+      .catch(() => setOfflineCoverage("missing"));
+  }, [geo.coordinates, live.current, online]);
 
   const alertDistanceKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
     const R = 6371;
@@ -532,8 +621,18 @@ const MapPage = () => {
               </button>
 
               {geo.error && (
+                <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
+                  <p>{geo.error}</p>
+                  <p className="mt-1 text-amber-200/70">
+                    Showing your last map position instead. Enable location for the best experience.
+                  </p>
+                </div>
+              )}
+
+              {offlineCoverage === "missing" && (
                 <p className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
-                  {geo.error}
+                  This area has not been downloaded for offline use. Your location is still
+                  accurate — download this region from Offline Maps while online to see the map here.
                 </p>
               )}
 
@@ -881,11 +980,14 @@ const MapPage = () => {
               destination={destination}
               selectedRoute={activeRoute}
               alternatives={routes}
-              currentLocation={live.current}
+              // Live tracking wins when it is running; otherwise the one-shot
+              // GPS fix drives the "You are here" marker and auto-centring.
+              currentLocation={live.current ?? geo.coordinates}
               incidents={incidents}
               communityNotes={communityNotes}
               roadAlerts={roadAlerts}
               showTraffic={showTraffic}
+              recenterRequest={recenterRequest}
               onAlertSelect={setSelectedAlert}
               onBoundsChange={handleBoundsChange}
               onRouteSelect={setSelectedRoute}

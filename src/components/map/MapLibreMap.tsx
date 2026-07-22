@@ -26,6 +26,11 @@ type Props = {
   communityNotes: CommunityNote[];
   roadAlerts?: RoadAlert[];
   showTraffic?: boolean;
+  /**
+   * Bumped when the user explicitly asks to be recentred (the GPS button).
+   * An explicit request always wins, even after they have panned the map.
+   */
+  recenterRequest?: number;
   onAlertSelect?: (alert: RoadAlert) => void;
   onBoundsChange: (bounds: MapBounds) => void;
   onRouteSelect: (route: RouteAlternative) => void;
@@ -43,11 +48,33 @@ const SEVERITY_COLOR: Record<string, string> = {
   critical: "#f87171",
 };
 
+/** City-level zoom used when the map centres on the user's GPS position. */
+const GPS_ZOOM = 15;
+
 /** Coarser grid when zoomed out -> fewer, bigger alert clusters. */
 const gridPrecision = (zoom: number) => (zoom < 7 ? 1 : zoom < 9 ? 0.5 : 0.25);
 
 const isUsable = (point: Coordinates | null | undefined): point is Coordinates =>
   !!point && Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
+
+/**
+ * Centres the map on a position at city zoom.
+ *
+ * The eased flyTo is driven by requestAnimationFrame, which does not fire while
+ * the tab is hidden or unpainted — the same hazard the `ready` timer above
+ * works around. A fix that arrives in a background tab would therefore start an
+ * animation that never advances, and because the caller has already spent its
+ * one-shot "centred" flag, the map would still be on the fallback view when the
+ * user finally looks at it. So: animate when visible, jump when not.
+ */
+const centreOn = (map: maplibregl.Map, point: Coordinates, duration: number) => {
+  const camera = { center: [point.longitude, point.latitude] as [number, number], zoom: GPS_ZOOM };
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    map.jumpTo(camera);
+    return;
+  }
+  map.flyTo({ ...camera, duration });
+};
 
 /**
  * Runs a style operation (addSource/addLayer/setData) as soon as the style can
@@ -108,6 +135,7 @@ const MapLibreMap = ({
   communityNotes,
   roadAlerts,
   showTraffic = false,
+  recenterRequest = 0,
   onAlertSelect,
   onBoundsChange,
   onRouteSelect,
@@ -117,6 +145,8 @@ const MapLibreMap = ({
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const [ready, setReady] = useState(false);
   const [styleFailed, setStyleFailed] = useState(false);
+  /** Set once the user pans/zooms/rotates themselves — suppresses auto-centring. */
+  const userInteracted = useRef(false);
   const [zoom, setZoom] = useState(appEnv.defaultCenter.zoom);
 
   // Latest callbacks without re-creating the map when a parent re-renders.
@@ -198,6 +228,16 @@ const MapLibreMap = ({
     map.on("load", emitBounds);
     map.once("idle", emitBounds);
     map.on("moveend", emitBounds);
+
+    // A movement carrying an originalEvent came from the user (drag, wheel,
+    // pinch, keyboard) rather than from our own flyTo/fitBounds. From then on
+    // the viewport is theirs and we stop moving it automatically.
+    const markUserInteraction = (event: { originalEvent?: unknown }) => {
+      if (event.originalEvent) userInteracted.current = true;
+    };
+    map.on("dragstart", markUserInteraction);
+    map.on("zoomstart", markUserInteraction);
+    map.on("rotatestart", markUserInteraction);
 
     // Exposed in development only, to inspect map state from the console.
     if (import.meta.env.DEV) {
@@ -323,15 +363,35 @@ const MapLibreMap = ({
     }
   }, [ready, selectedRoute]);
 
-  /* ------------------------------- open near GPS the first time a fix arrives */
+  /* ------------------------------- open near GPS the first time a fix arrives
+     Centres on the user's real position at city zoom as soon as a fix is
+     available — including a fix that only arrives later, e.g. because
+     permission was granted after the page opened.
+
+     Two guards keep it from ever feeling like the map "jumps":
+       - it happens at most once (centredOnGps)
+       - it is skipped once the user has panned/zoomed themselves, or once a
+         route is on screen (fitBounds owns the viewport then).                */
   const centredOnGps = useRef(false);
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || centredOnGps.current) return;
+    if (!map || !ready || centredOnGps.current || userInteracted.current) return;
     if (!isUsable(currentLocation) || selectedRoute) return;
+
     centredOnGps.current = true;
-    map.flyTo({ center: [currentLocation.longitude, currentLocation.latitude], zoom: 15, duration: 1200 });
+    centreOn(map, currentLocation, 1200);
   }, [currentLocation, ready, selectedRoute]);
+
+  /* --------------------------------- explicit "centre on me" (GPS button) ---
+     Unlike the automatic centring above, this ignores the interaction guard:
+     the user asked for it, so it always moves the map.                       */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || recenterRequest === 0 || !isUsable(currentLocation)) return;
+    centreOn(map, currentLocation, 1000);
+    // Only re-run when a NEW request comes in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recenterRequest]);
 
   /* -------------------------------------------------- optional traffic layer */
   useEffect(() => {
