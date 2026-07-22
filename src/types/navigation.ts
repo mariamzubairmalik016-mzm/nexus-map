@@ -4,14 +4,64 @@ export type Coordinates = {
   accuracy?: number;
 };
 
+export type PlaceProvider = "tomtom" | "geoapify" | "supabase" | "offline" | "gps" | "saved";
+
+/**
+ * One normalized search result. The backend emits this shape for every
+ * provider; `position` mirrors `lat`/`lng` and is what the map and routing
+ * layers consume.
+ */
 export type SearchSuggestion = {
   id: string;
+  provider?: PlaceProvider;
+  providerId?: string;
   name: string;
+  displayName?: string;
   address: string;
   city?: string;
+  province?: string;
   country?: string;
+  countryCode?: string;
   category?: string;
+  lat?: number;
+  lng?: number;
+  score?: number;
   position: Coordinates;
+};
+
+/** A place the user explicitly saved (Home / Work / University / custom). */
+export type SavedPlaceCategory = "home" | "work" | "university" | "custom";
+
+export type SavedPlace = {
+  id: string;
+  userId?: string;
+  label: string;
+  category: SavedPlaceCategory;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  notes?: string;
+  favorite: boolean;
+  lastVisitedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Set locally while an offline change is waiting to reach Supabase. */
+  pendingSync?: boolean;
+  deleted?: boolean;
+};
+
+/** A search the user actually selected, kept for offline reuse. */
+export type RecentSearch = {
+  id: string;
+  query: string;
+  name: string;
+  displayName: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  provider?: PlaceProvider;
+  searchedAt: string;
 };
 
 export type RouteInstruction = {

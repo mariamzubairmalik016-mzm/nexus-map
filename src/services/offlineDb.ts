@@ -1,5 +1,8 @@
 import type { OfflinePack, OfflinePlace } from "../types/offline";
 import type { RoadAlert } from "../types/roadAlerts";
+import type { RecentSearch, SavedPlace } from "../types/navigation";
+import type { OfflineRegion } from "../types/offlineRegion";
+import type { SavedRoute } from "../types/savedRoute";
 
 // A single request that failed while offline and must be replayed on reconnect.
 export type QueuedRequest = {
@@ -17,7 +20,10 @@ export type OfflineFavorite = { id: string; name: string; city?: string; country
 export type OfflineHistoryItem = { id: string; startName: string; destinationName: string; distanceKm?: number; durationMinutes?: number; createdAt: string };
 
 const DB_NAME = "nexus-map-offline";
-const DB_VERSION = 5;
+// v6 adds offlineRegions / savedPlaces / recentSearches / cachedSearches /
+// offlineSettings. The migration only creates what is missing, so upgrading
+// never touches data already stored by v5.
+const DB_VERSION = 6;
 
 // Single source of truth for every object store. Adding a store here + bumping
 // DB_VERSION is all that's required; migration creates only what's missing.
@@ -34,6 +40,11 @@ const STORES: Record<string, StoreSpec> = {
   savedRoutes: { keyPath: "id" },
   aiHistory: { keyPath: "id" },
   destinations: { keyPath: "id" },
+  offlineRegions: { keyPath: "id" },
+  savedPlaces: { keyPath: "id" },
+  recentSearches: { keyPath: "id" },
+  cachedSearches: { keyPath: "id" },
+  offlineSettings: { keyPath: "id" },
 };
 const STORE_NAMES = Object.keys(STORES);
 
@@ -50,6 +61,11 @@ export const STORE = {
   savedRoutes: "savedRoutes",
   aiHistory: "aiHistory",
   destinations: "destinations",
+  offlineRegions: "offlineRegions",
+  savedPlaces: "savedPlaces",
+  recentSearches: "recentSearches",
+  cachedSearches: "cachedSearches",
+  offlineSettings: "offlineSettings",
 } as const;
 
 const debug = (...args: unknown[]) => {
@@ -243,4 +259,38 @@ export const offlineDb = {
   getDestinations: <T = unknown>() => readAll<T>(STORE.destinations),
   saveDestinations: <T extends { id: string }>(items: T[]) =>
     writeOp(STORE.destinations, (s) => items.forEach((item) => s.put(item))),
+
+  // --- Downloaded map regions (metadata only; tiles live in Cache Storage) ---
+  getRegions: () => readAll<OfflineRegion>(STORE.offlineRegions),
+  saveRegion: (region: OfflineRegion) => writeOp(STORE.offlineRegions, (s) => s.put(region)),
+  deleteRegion: (id: string) => writeOp(STORE.offlineRegions, (s) => s.delete(id)),
+
+  // --- Saved places (Home / Work / University / custom), synced with Supabase ---
+  getSavedPlaces: () => readAll<SavedPlace>(STORE.savedPlaces),
+  saveSavedPlace: (place: SavedPlace) => writeOp(STORE.savedPlaces, (s) => s.put(place)),
+  saveSavedPlaces: (places: SavedPlace[]) =>
+    writeOp(STORE.savedPlaces, (s) => places.forEach((place) => s.put(place))),
+  deleteSavedPlace: (id: string) => writeOp(STORE.savedPlaces, (s) => s.delete(id)),
+
+  // --- Saved routes: everything needed to reopen a route with no network ---
+  getSavedRoutes: () => readAll<SavedRoute>(STORE.savedRoutes),
+  saveRoute: (route: SavedRoute) => writeOp(STORE.savedRoutes, (s) => s.put(route)),
+  deleteRoute: (id: string) => writeOp(STORE.savedRoutes, (s) => s.delete(id)),
+
+  // --- Recent searches ---
+  getRecentSearches: () => readAll<RecentSearch>(STORE.recentSearches),
+  addRecentSearch: (item: RecentSearch) => writeOp(STORE.recentSearches, (s) => s.put(item)),
+  deleteRecentSearch: (id: string) => writeOp(STORE.recentSearches, (s) => s.delete(id)),
+  clearRecentSearches: () => writeOp(STORE.recentSearches, (s) => s.clear()),
+
+  // --- Cached search responses, replayed when offline ---
+  getCachedSearches: <T = unknown>() => readAll<T>(STORE.cachedSearches),
+  saveCachedSearch: <T extends { id: string }>(entry: T) =>
+    writeOp(STORE.cachedSearches, (s) => s.put(entry)),
+  deleteCachedSearch: (id: string) => writeOp(STORE.cachedSearches, (s) => s.delete(id)),
+
+  // --- Offline settings (single record per key) ---
+  getSettings: <T = unknown>() => readAll<T>(STORE.offlineSettings),
+  saveSetting: <T extends { id: string }>(setting: T) =>
+    writeOp(STORE.offlineSettings, (s) => s.put(setting)),
 };

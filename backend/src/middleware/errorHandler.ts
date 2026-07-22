@@ -9,9 +9,12 @@ export const errorHandler: ErrorRequestHandler = (
   _next,
 ) => {
   if (error instanceof ZodError) {
+    // Surface the first specific message ("Start and destination are the same
+    // place.") so the UI can show it verbatim instead of a generic string.
+    const specific = error.issues.find((issue) => issue.message && issue.message !== "Required");
     response.status(400).json({
       success: false,
-      message: "Validation failed.",
+      message: specific?.message ?? "Validation failed.",
       errors: error.flatten(),
     });
     return;

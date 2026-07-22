@@ -2,31 +2,38 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
+  Bike,
+  Bookmark,
   Bot,
   Car,
-  Clock3,
+  Footprints,
   LocateFixed,
-  MapPin,
   Navigation,
   PauseCircle,
   PlayCircle,
   Route,
   Send,
   Sparkles,
+  Trash2,
+  WifiOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import SearchAutocomplete from "../../components/map/SearchAutocomplete";
-import NavigationMap from "../../components/map/NavigationMap";
+import MapLibreMap from "../../components/map/MapLibreMap";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { navigationApi } from "../../services/navigationApi";
 import { offlineDb } from "../../services/offlineDb";
 import { roadAlertsService } from "../../services/roadAlertsService";
+import { networkStatus } from "../../services/networkStatus";
+import { savedRouteService, savedRouteToAlternative } from "../../services/savedRouteService";
 import AlertDetailPanel from "../../components/map/AlertDetailPanel";
 import { useLiveNavigation } from "../../hooks/useLiveNavigation";
-import { useGeolocation } from "../../hooks/useGeolocation";
+import { useGeolocation, currentLocationSuggestion } from "../../hooks/useGeolocation";
+import { useInternetStatus } from "../../hooks/useInternetStatus";
 import type { RoadAlert } from "../../types/roadAlerts";
+import type { RouteType, SavedRoute, TravelMode } from "../../types/savedRoute";
 
 const isValidCoord = (c: Coordinates | null): c is Coordinates =>
   !!c &&
@@ -67,11 +74,20 @@ const formatMinutes = (seconds: number) =>
 
 const MapPage = () => {
   const [searchParams] = useSearchParams();
-  const [startText, setStartText] = useState("");
-  const [destinationText, setDestinationText] = useState("");
-  const [start, setStart] = useState<Coordinates | null>(null);
-  const [destination, setDestination] =
-    useState<Coordinates | null>(null);
+  const online = useInternetStatus();
+
+  // Typed text and the confirmed selection are separate on purpose: a typed
+  // string is NOT a location. `start`/`destination` are only ever set by
+  // picking a suggestion or by a GPS fix, and are cleared the moment the
+  // matching text is edited.
+  const [startQuery, setStartQuery] = useState("");
+  const [destinationQuery, setDestinationQuery] = useState("");
+  const [selectedStart, setSelectedStart] = useState<SearchSuggestion | null>(null);
+  const [selectedDestination, setSelectedDestination] = useState<SearchSuggestion | null>(null);
+
+  const start = selectedStart?.position ?? null;
+  const destination = selectedDestination?.position ?? null;
+
   const [routes, setRoutes] = useState<RouteAlternative[]>([]);
   const [selectedRoute, setSelectedRoute] =
     useState<RouteAlternative | null>(null);
@@ -79,7 +95,11 @@ const MapPage = () => {
   const [communityNotes, setCommunityNotes] =
     useState<CommunityNote[]>([]);
   const [busy, setBusy] = useState(false);
+  const [travelMode, setTravelMode] = useState<TravelMode>("car");
+  const [routeType, setRouteType] = useState<RouteType>("fastest");
   const [avoidTolls, setAvoidTolls] = useState(false);
+  const [avoidFerries, setAvoidFerries] = useState(false);
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<string[]>([
     "Nexus AI: Select a route and ask about ETA, traffic, destination or road conditions.",
@@ -95,24 +115,26 @@ const MapPage = () => {
   const geo = useGeolocation();
   const activeRoute = live.activeRoute ?? selectedRoute;
 
-  // GPS button: use the browser Geolocation API directly (no tracking mode
-  // required). When a fix arrives, set it as the start point.
-  useEffect(() => {
-    if (geo.coordinates) {
-      setStart({
-        latitude: geo.coordinates.latitude,
-        longitude: geo.coordinates.longitude,
-        accuracy: geo.coordinates.accuracy,
-      });
-      setStartText("Current Location");
+  /**
+   * GPS button. Calls the browser Geolocation API directly — no backend, no
+   * tracking mode — and makes the fix the selected start point so a route can
+   * be generated immediately.
+   */
+  const useCurrentLocation = async () => {
+    const coordinates = await geo.getCurrentLocation();
+    if (!coordinates) {
+      toast.error(geo.error || "Unable to detect your location.");
+      return;
     }
-  }, [geo.coordinates]);
-
-  useEffect(() => {
-    if (geo.error) toast.error("Unable to access your location — please allow location permission.");
-  }, [geo.error]);
+    setSelectedStart(currentLocationSuggestion(coordinates));
+    setStartQuery("Current Location");
+    toast.success("Using your current location.");
+  };
 
   const loadAlerts = useCallback(async () => {
+    // Offline: never poll a live endpoint. The cached alerts already on screen
+    // (and in IndexedDB) stay as they are.
+    if (networkStatus.isOffline()) return;
     try {
       const { alerts } = await roadAlertsService.list({ status: "active" });
       setRoadAlerts(alerts);
@@ -122,6 +144,17 @@ const MapPage = () => {
   }, []);
 
   useEffect(() => {
+    void offlineDb
+      .getRoadAlerts()
+      .then((cached) => setRoadAlerts((current) => (current.length ? current : cached)))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    // Alerts are an OPTIONAL live layer: only polled while online, and the
+    // interval is torn down the moment connectivity drops.
+    if (!online) return;
+
     void loadAlerts();
     const unsubscribe = roadAlertsService.subscribeRealtime(() => void loadAlerts());
     const timer = window.setInterval(() => void loadAlerts(), 45_000);
@@ -129,7 +162,11 @@ const MapPage = () => {
       unsubscribe();
       window.clearInterval(timer);
     };
-  }, [loadAlerts]);
+  }, [loadAlerts, online]);
+
+  useEffect(() => {
+    void savedRouteService.list().then(setSavedRoutes);
+  }, []);
 
   const alertDistanceKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
     const R = 6371;
@@ -217,8 +254,17 @@ const MapPage = () => {
       Number.isFinite(latitude) &&
       Number.isFinite(longitude)
     ) {
-      setDestinationText(place);
-      setDestination({ latitude, longitude });
+      setDestinationQuery(place);
+      setSelectedDestination({
+        id: `link-${place}`,
+        provider: "offline",
+        name: place,
+        displayName: place,
+        address: place,
+        lat: latitude,
+        lng: longitude,
+        position: { latitude, longitude },
+      });
     }
   }, [searchParams]);
 
@@ -233,12 +279,18 @@ const MapPage = () => {
       toast.error("Start and destination are the same place.");
       return;
     }
+    if (!online) {
+      toast.error("This route is not available offline. Save or download it while online first.");
+      return;
+    }
 
     try {
       setBusy(true);
       const result = await navigationApi.routes(start, destination, {
-        travelMode: "car",
+        travelMode,
+        routeType,
         avoidTolls,
+        avoidFerries,
         alternatives: 2,
       });
 
@@ -253,8 +305,8 @@ const MapPage = () => {
       const best = result[0];
       void offlineDb.addHistory({
         id: crypto.randomUUID(),
-        startName: startText || "Start",
-        destinationName: destinationText || "Destination",
+        startName: startQuery || "Start",
+        destinationName: destinationQuery || "Destination",
         distanceKm: Math.round((best.summary.lengthMeters / 1000) * 10) / 10,
         durationMinutes: Math.round(best.summary.travelTimeSeconds / 60),
         createdAt: new Date().toISOString(),
@@ -270,8 +322,68 @@ const MapPage = () => {
     }
   };
 
+  /** Stores the selected route (geometry + instructions) for offline reuse. */
+  const saveCurrentRoute = async () => {
+    if (!selectedRoute) return;
+    try {
+      const saved = await savedRouteService.save({
+        title: `${startQuery || "Start"} → ${destinationQuery || "Destination"}`,
+        route: selectedRoute,
+        originName: startQuery || "Start",
+        destinationName: destinationQuery || "Destination",
+        travelMode,
+        routeType,
+        avoidTolls,
+        avoidFerries,
+      });
+      setSavedRoutes((current) => [saved, ...current]);
+      toast.success("Route saved — it will open offline.");
+    } catch {
+      toast.error("Could not save this route on this device.");
+    }
+  };
+
+  /** Reopens a saved route from IndexedDB — no routing provider involved. */
+  const openSavedRoute = (saved: SavedRoute) => {
+    const alternative = savedRouteToAlternative(saved);
+    setRoutes([alternative]);
+    setSelectedRoute(alternative);
+    setStartQuery(saved.originName);
+    setDestinationQuery(saved.destinationName);
+    setSelectedStart({
+      id: `saved-origin-${saved.id}`,
+      provider: "offline",
+      name: saved.originName,
+      displayName: saved.originName,
+      address: saved.originName,
+      position: saved.origin,
+    });
+    setSelectedDestination({
+      id: `saved-destination-${saved.id}`,
+      provider: "offline",
+      name: saved.destinationName,
+      displayName: saved.destinationName,
+      address: saved.destinationName,
+      position: saved.destination,
+    });
+    setTravelMode(saved.travelMode);
+    setRouteType(saved.routeType);
+    setAvoidTolls(saved.avoidTolls);
+    setAvoidFerries(saved.avoidFerries);
+    toast.success("Saved route opened.");
+  };
+
+  const deleteSavedRoute = async (id: string) => {
+    await savedRouteService.remove(id);
+    setSavedRoutes((current) => current.filter((route) => route.id !== id));
+  };
+
   const handleBoundsChange = useCallback(
     (bounds: Bounds) => {
+      // Traffic incidents and community notes are OPTIONAL live layers —
+      // never requested while offline, so panning offline makes no calls.
+      if (networkStatus.isOffline()) return;
+
       void Promise.all([
         navigationApi.trafficIncidents(
           bounds.west,
@@ -345,25 +457,35 @@ const MapPage = () => {
               </h2>
             </div>
 
+            {!online && (
+              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+                <WifiOff size={17} className="mt-0.5 shrink-0" />
+                <p className="leading-6">
+                  You are offline. Search uses saved and cached places, and saved routes still
+                  open. New routes need a connection.
+                </p>
+              </div>
+            )}
+
             <div className="mt-5 space-y-4">
               <SearchAutocomplete
                 label="Starting point"
-                value={startText}
+                value={startQuery}
                 placeholder="Your location or any place"
                 bias={geo.coordinates ?? live.current}
+                selected={Boolean(selectedStart)}
                 onChange={(value) => {
-                  setStartText(value);
-                  setStart(null);
+                  setStartQuery(value);
+                  // Editing the text invalidates the confirmed selection.
+                  setSelectedStart(null);
                 }}
-                onSelect={(item: SearchSuggestion) =>
-                  setStart(item.position)
-                }
+                onSelect={setSelectedStart}
                 accent="emerald"
               />
 
               <button
                 type="button"
-                onClick={() => geo.getCurrentLocation()}
+                onClick={() => void useCurrentLocation()}
                 disabled={geo.loading}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-sm disabled:opacity-60"
               >
@@ -371,23 +493,73 @@ const MapPage = () => {
                 {geo.loading ? "Locating…" : "Use current GPS location"}
               </button>
 
+              {geo.error && (
+                <p className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
+                  {geo.error}
+                </p>
+              )}
+
               <SearchAutocomplete
                 label="Destination"
-                value={destinationText}
+                value={destinationQuery}
                 placeholder="Street, village, city or landmark"
                 bias={geo.coordinates ?? live.current}
+                selected={Boolean(selectedDestination)}
                 onChange={(value) => {
-                  setDestinationText(value);
-                  setDestination(null);
+                  setDestinationQuery(value);
+                  setSelectedDestination(null);
                 }}
-                onSelect={(item: SearchSuggestion) =>
-                  setDestination(item.position)
-                }
+                onSelect={setSelectedDestination}
                 accent="red"
               />
             </div>
 
-            <label className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {(
+                [
+                  { id: "car", label: "Drive", icon: Car },
+                  { id: "pedestrian", label: "Walk", icon: Footprints },
+                  { id: "bicycle", label: "Cycle", icon: Bike },
+                ] as const
+              ).map((mode) => {
+                const Icon = mode.icon;
+                const active = travelMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setTravelMode(mode.id)}
+                    className={`flex flex-col items-center gap-1 rounded-2xl border py-3 text-xs transition ${
+                      active
+                        ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-200"
+                        : "border-white/10 bg-white/[0.03] text-slate-400"
+                    }`}
+                  >
+                    <Icon size={17} />
+                    {mode.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(["fastest", "shortest"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setRouteType(type)}
+                  className={`rounded-2xl border py-3 text-xs capitalize transition ${
+                    routeType === type
+                      ? "border-purple-400/40 bg-purple-500/10 text-purple-200"
+                      : "border-white/10 bg-white/[0.03] text-slate-400"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <label className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
               Avoid toll roads
               <input
                 type="checkbox"
@@ -395,6 +567,16 @@ const MapPage = () => {
                 onChange={(event) =>
                   setAvoidTolls(event.target.checked)
                 }
+                className="h-5 w-5 accent-cyan-500"
+              />
+            </label>
+
+            <label className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+              Avoid ferries
+              <input
+                type="checkbox"
+                checked={avoidFerries}
+                onChange={(event) => setAvoidFerries(event.target.checked)}
                 className="h-5 w-5 accent-cyan-500"
               />
             </label>
@@ -512,6 +694,55 @@ const MapPage = () => {
               </div>
             )}
 
+            {selectedRoute && (
+              <button
+                type="button"
+                onClick={() => void saveCurrentRoute()}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 py-3 text-sm font-semibold text-cyan-200"
+              >
+                <Bookmark size={16} />
+                Save route for offline use
+              </button>
+            )}
+
+            {savedRoutes.length > 0 && (
+              <div className="mt-6">
+                <h3 className="font-semibold">Saved routes</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Stored on this device — they open without a connection.
+                </p>
+
+                <div className="mt-3 space-y-2">
+                  {savedRoutes.map((route) => (
+                    <div
+                      key={route.id}
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => openSavedRoute(route)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <strong className="block truncate text-sm">{route.title}</strong>
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {(route.distanceMeters / 1000).toFixed(1)} km ·{" "}
+                          {formatMinutes(route.durationSeconds)} · {route.travelMode}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete ${route.title}`}
+                        onClick={() => void deleteSavedRoute(route.id)}
+                        className="shrink-0 rounded-lg p-2 text-slate-500 transition hover:text-red-300"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {live.tracking && nextInstruction && (
               <div className="mt-5 rounded-[24px] border border-blue-400/20 bg-blue-500/10 p-5">
                 <p className="text-xs uppercase tracking-[0.2em] text-blue-300">
@@ -607,7 +838,7 @@ const MapPage = () => {
           </aside>
 
           <div className="relative min-h-[760px]">
-            <NavigationMap
+            <MapLibreMap
               start={start}
               destination={destination}
               selectedRoute={activeRoute}

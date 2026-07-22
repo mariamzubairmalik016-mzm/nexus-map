@@ -6,9 +6,9 @@ import type {
   TrafficIncident,
 } from "../types/navigation";
 import { assertOnline } from "./networkStatus";
+import { appEnv } from "../config/appEnv";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = appEnv.apiUrl;
 
 type ApiResult<T> = {
   success: boolean;
@@ -62,7 +62,9 @@ export const navigationApi = {
     destination: Coordinates,
     options: {
       travelMode: string;
+      routeType?: string;
       avoidTolls: boolean;
+      avoidFerries?: boolean;
       alternatives: number;
     },
   ): Promise<RouteAlternative[]> =>
