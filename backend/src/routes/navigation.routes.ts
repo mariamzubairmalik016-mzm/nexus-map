@@ -28,11 +28,6 @@ type SearchItem = {
 };
 
 const PK_BBOX = { minLat: 23, maxLat: 37, minLon: 60, maxLon: 78 };
-const isPakistanResult = (r: SearchItem) => {
-  const cc = (r.countryCode ?? "").toUpperCase();
-  const co = (r.country ?? "").toUpperCase();
-  return cc === "PK" || co === "PK" || co === "PAKISTAN";
-};
 
 navigationRouter.get(
   "/search",
@@ -64,8 +59,8 @@ navigationRouter.get(
     ]);
 
     const all: SearchItem[] = [
-      // Curated catalog gets a solid baseline relevance.
-      ...catalog.map((c) => ({ ...c, source: "supabase", score: c.score ?? 6 })),
+      // All scores are on a ~0..1 relevance scale.
+      ...catalog.map((c) => ({ ...c, source: "supabase", score: c.score ?? 0.7 })),
       ...worldwide.map((t) => ({ ...t, source: "tomtom" })),
       ...pkTomTom.map((t) => ({ ...t, source: "tomtom" })),
       ...pkGeoapify, // already tagged source: "geoapify" and scored
@@ -79,7 +74,19 @@ navigationRouter.get(
       if (!existing || (item.score ?? 0) > (existing.score ?? 0)) unique.set(key, item);
     }
 
-    const effective = (r: SearchItem) => (r.score ?? 0) * (inPakistan && isPakistanResult(r) ? 1.6 : 1);
+    // TomTom is the PRIMARY provider. Supplementary providers (Geoapify /
+    // catalog) may only OUTRANK TomTom when TomTom itself is weak — i.e. its
+    // best match is low-relevance (the niche-PK-POI case). When TomTom has a
+    // decent match (a real city/place), it leads and Geoapify is capped just
+    // below it. This keeps global search correct (Tokyo, Sydney, London) while
+    // still surfacing Pakistani POIs TomTom lacks (Lucky One Mall, Dolmen Mall).
+    const tomtomBest = all.reduce((m, r) => (r.source === "tomtom" ? Math.max(m, r.score ?? 0) : m), 0);
+    const geoapifyMayLead = tomtomBest < 0.5;
+    const effective = (r: SearchItem) => {
+      const s = r.score ?? 0;
+      if (r.source === "tomtom") return s * 1.1;
+      return geoapifyMayLead ? s : Math.min(s, tomtomBest * 0.95);
+    };
     const ranked = [...unique.values()].sort((a, b) => effective(b) - effective(a)).slice(0, 12);
 
     response.json({ success: true, data: ranked });

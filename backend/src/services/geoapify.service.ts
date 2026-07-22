@@ -76,8 +76,8 @@ export const searchGeoapify = async (
         country: r.country,
         countryCode: (r.country_code ?? "").toUpperCase(),
         category: r.result_type || r.category,
-        // Geoapify confidence is 0..1 — scale to ~0..10 to compare with TomTom.
-        score: (r.rank?.confidence ?? 0.5) * 10,
+        // Geoapify confidence is 0..1 — same scale as TomTom's relevance score.
+        score: r.rank?.confidence ?? 0.5,
         position: { latitude: r.lat, longitude: r.lon },
         source: "geoapify" as const,
       }));
