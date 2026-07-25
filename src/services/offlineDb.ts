@@ -70,7 +70,7 @@ export const STORE = {
 
 const debug = (...args: unknown[]) => {
   // Store names / schema only — never user data or secrets.
-  if (import.meta.env.DEV) console.debug("[offlineDb]", ...args);
+  if ((process.env.NODE_ENV === 'development')) console.debug("[offlineDb]", ...args);
 };
 
 // Create every missing store/index without touching existing ones or data.

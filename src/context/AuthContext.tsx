@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await client.from("profiles").select("*").eq("id", authUser.id).maybeSingle();
       data = (result.data as Profile | null) ?? null;
     } catch (cause) {
-      if (import.meta.env.DEV) console.error("[auth] profile load failed", cause);
+      if ((process.env.NODE_ENV === 'development')) console.error("[auth] profile load failed", cause);
     }
 
     if (data) {
@@ -129,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // a corrupt stored token. Without this the promise never settles,
         // `loading` stays true and every consumer renders its spinner forever:
         // an indefinite blank screen instead of a usable signed-out app.
-        if (import.meta.env.DEV) console.error("[auth] session restore failed", cause);
+        if ((process.env.NODE_ENV === 'development')) console.error("[auth] session restore failed", cause);
         if (active) setUser(null);
       })
       .finally(() => {

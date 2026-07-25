@@ -87,11 +87,15 @@ export const savedPlaces = pgTable("saved_places", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   label: varchar("label", { length: 255 }).notNull(),
-  address: text("address").notNull(),
+  name: text("name").notNull(),
+  address: text("address"),
   latitude: doublePrecision("latitude").notNull(),
   longitude: doublePrecision("longitude").notNull(),
   category: varchar("category", { length: 50 }),
+  notes: text("notes"),
+  favorite: integer("favorite").default(0), // 0 or 1 for boolean
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const searchHistory = pgTable("search_history", {
@@ -99,4 +103,67 @@ export const searchHistory = pgTable("search_history", {
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
   query: text("query").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const favorites = pgTable("favorites", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  placeId: text("place_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const history = pgTable("history", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  startName: text("start_name").notNull(),
+  destinationName: text("destination_name").notNull(),
+  distanceKm: doublePrecision("distance_km"),
+  durationMinutes: doublePrecision("duration_minutes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const roadAlerts = pgTable("road_alerts", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull(),
+  description: text("description"),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  status: varchar("status", { length: 20 }).default("active").notNull(),
+  upvotes: integer("upvotes").default(0).notNull(),
+  downvotes: integer("downvotes").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityNotes = pgTable("community_notes", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const savedRoutes = pgTable("saved_routes", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  title: text("title").notNull(),
+  originName: text("origin_name").notNull(),
+  destinationName: text("destination_name").notNull(),
+  origin: text("origin"), // JSON stringified Coordinates
+  destination: text("destination"), // JSON stringified Coordinates
+  distanceMeters: doublePrecision("distance_meters"),
+  durationSeconds: doublePrecision("duration_seconds"),
+  geometry: text("geometry"), // JSON stringified coordinates
+  instructions: text("instructions"), // JSON stringified RouteInstructions
+  travelMode: varchar("travel_mode", { length: 50 }),
+  routeType: varchar("route_type", { length: 50 }),
+  avoidTolls: integer("avoid_tolls").default(0), // sqlite-like boolean mapping
+  avoidFerries: integer("avoid_ferries").default(0),
+  offlineAvailable: integer("offline_available").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 import { queueRequest } from "./offlineQueue";
 import { networkStatus, OfflineError } from "./networkStatus";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -10,20 +10,10 @@ type ApiResponse<T> = {
   message?: string;
 };
 
-// Forward the real Supabase session token when signed in. Unauthenticated
-// requests send no auth header (protected backend routes will correctly 401).
+// NextAuth uses HTTP-only cookies, so we don't need to manually inject auth headers.
+// The browser will automatically send the session cookie with every fetch request to /api.
 const authHeaders = async (): Promise<Record<string, string>> => {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (supabase) {
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (token) headers.Authorization = `Bearer ${token}`;
-    } catch {
-      // no session — send unauthenticated
-    }
-  }
-  return headers;
+  return { "Content-Type": "application/json" };
 };
 
 const request = async <T>(

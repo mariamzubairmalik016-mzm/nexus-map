@@ -10,7 +10,7 @@ import {
   type SourcesMeta,
 } from "../types/roadAlerts";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export type ReportInput = {
   type: RoadAlertType;
@@ -56,7 +56,7 @@ const isPlaceable = isPlaceableAlert;
 
 export const usableAlerts = (alerts: RoadAlert[]): RoadAlert[] => {
   const usable = alerts.filter(isPlaceable);
-  if (import.meta.env.DEV && usable.length !== alerts.length) {
+  if ((process.env.NODE_ENV === 'development') && usable.length !== alerts.length) {
     console.warn(
       `[roadAlerts] dropped ${alerts.length - usable.length} alert(s) with no usable coordinates`,
     );

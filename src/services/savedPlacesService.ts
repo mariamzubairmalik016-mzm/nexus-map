@@ -1,6 +1,6 @@
-import { supabase } from "../lib/supabase";
 import { offlineDb } from "./offlineDb";
 import { networkStatus } from "./networkStatus";
+import { api } from "./api";
 import type { SavedPlace, SavedPlaceCategory } from "../types/navigation";
 
 /**
@@ -84,26 +84,16 @@ const localList = async () => {
 export const savedPlacesService = {
   /** Offline (or signed-out): the local mirror. Online: refresh from Supabase. */
   list: async (): Promise<SavedPlace[]> => {
-    if (networkStatus.isOffline() || !supabase) return localList();
-
-    const userId = await currentUserId();
-    if (!userId) return localList();
+    if (networkStatus.isOffline()) return localList();
 
     try {
-      const { data, error } = await requireClient()
-        .from("saved_places")
-        .select("*")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
-
-      const remote = (data as Row[]).map(fromRow);
+      const remote = await api.get<Row[]>("/places/saved");
+      const mapped = remote.map(fromRow);
 
       // Keep anything still waiting to sync — it is newer than the server copy.
       const local = await offlineDb.getSavedPlaces().catch(() => [] as SavedPlace[]);
       const pending = local.filter((place) => place.pendingSync);
-      const merged = [...remote.filter((r) => !pending.some((p) => p.id === r.id)), ...pending];
+      const merged = [...mapped.filter((r: SavedPlace) => !pending.some((p: SavedPlace) => p.id === r.id)), ...pending];
 
       await offlineDb.saveSavedPlaces(merged);
       return merged.filter((place) => !place.deleted).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -147,13 +137,11 @@ export const savedPlacesService = {
     // Write locally first so the UI is correct whether or not the push works.
     await offlineDb.saveSavedPlace(place);
 
-    const userId = networkStatus.isOnline() ? await currentUserId() : null;
-    if (!userId) return place;
+    if (networkStatus.isOffline()) return place;
 
     try {
-      const { error } = await requireClient().from("saved_places").upsert(toRow(place, userId));
-      if (error) throw error;
-      const synced = { ...place, userId, pendingSync: false };
+      const response = await api.post<SavedPlace>("/places/saved", toRow(place, "ignored_server_handles_it"));
+      const synced = { ...place, userId: response.userId, pendingSync: false };
       await offlineDb.saveSavedPlace(synced);
       return synced;
     } catch {
@@ -173,11 +161,9 @@ export const savedPlacesService = {
     const places = await offlineDb.getSavedPlaces().catch(() => [] as SavedPlace[]);
     const place = places.find((item) => item.id === id);
 
-    const userId = networkStatus.isOnline() ? await currentUserId() : null;
-    if (userId) {
+    if (networkStatus.isOnline()) {
       try {
-        const { error } = await requireClient().from("saved_places").delete().eq("id", id).eq("user_id", userId);
-        if (error) throw error;
+        await api.delete(`/places/saved/${id}`);
         await offlineDb.deleteSavedPlace(id);
         return;
       } catch {
@@ -198,10 +184,7 @@ export const savedPlacesService = {
 
   /** Pushes everything queued offline. Called on reconnect. */
   sync: async (): Promise<{ pushed: number; failed: number }> => {
-    if (networkStatus.isOffline() || !supabase) return { pushed: 0, failed: 0 };
-
-    const userId = await currentUserId();
-    if (!userId) return { pushed: 0, failed: 0 };
+    if (networkStatus.isOffline()) return { pushed: 0, failed: 0 };
 
     const places = await offlineDb.getSavedPlaces().catch(() => [] as SavedPlace[]);
     const pending = places.filter((place) => place.pendingSync);
@@ -212,19 +195,13 @@ export const savedPlacesService = {
     for (const place of pending) {
       try {
         if (place.deleted) {
-          const { error } = await requireClient()
-            .from("saved_places")
-            .delete()
-            .eq("id", place.id)
-            .eq("user_id", userId);
-          if (error) throw error;
+          await api.delete(`/places/saved/${place.id}`);
           await offlineDb.deleteSavedPlace(place.id);
         } else {
           // upsert on the primary key: replaying the same change twice is safe,
           // so a retry can never create a duplicate.
-          const { error } = await requireClient().from("saved_places").upsert(toRow(place, userId));
-          if (error) throw error;
-          await offlineDb.saveSavedPlace({ ...place, userId, pendingSync: false });
+          await api.post("/places/saved", toRow(place, "ignored_server_handles_it"));
+          await offlineDb.saveSavedPlace({ ...place, pendingSync: false });
         }
         pushed += 1;
       } catch {

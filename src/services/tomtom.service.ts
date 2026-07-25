@@ -1,5 +1,5 @@
-import { env } from "../config/env.js";
-import { HttpError } from "../utils/httpError.js";
+import { env } from "../config/env";
+import { HttpError } from "../utils/httpError";
 
 const TOMTOM_BASE = "https://api.tomtom.com";
 

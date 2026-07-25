@@ -42,7 +42,7 @@ class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     // Development only: a stack in a production console is noise to the user
     // and useful detail to an attacker. Real reporting would hook in here.
-    if (import.meta.env.DEV) {
+    if ((process.env.NODE_ENV === 'development')) {
       console.error(`[ErrorBoundary${this.props.label ? `:${this.props.label}` : ""}]`, error, info.componentStack);
     }
   }
@@ -81,7 +81,7 @@ class ErrorBoundary extends Component<Props, State> {
           </p>
 
           {/* Detail is developer-facing and stripped from production builds. */}
-          {import.meta.env.DEV && (
+          {(process.env.NODE_ENV === 'development') && (
             <pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-black/40 p-3 text-left text-[11px] leading-5 text-amber-200/80">
               {error.message}
             </pre>

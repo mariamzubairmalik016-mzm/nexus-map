@@ -87,7 +87,7 @@ const formatMinutes = (seconds: number) =>
 const MAX_INCIDENT_SPAN_DEGREES = 2;
 
 const MapPage = () => {
-  const [searchParams] = useSearchParams();
+  const searchParams = useSearchParams();
   const online = useInternetStatus();
 
   // Typed text and the confirmed selection are separate on purpose: a typed
@@ -432,7 +432,7 @@ const MapPage = () => {
       toast.success("Route ready.");
     } catch (error) {
       // Friendly message only; full error stays in the dev console.
-      if (import.meta.env.DEV) console.error("[route]", error);
+      if ((process.env.NODE_ENV === 'development')) console.error("[route]", error);
       toast.error(friendlyRouteError(error));
     } finally {
       setBusy(false);

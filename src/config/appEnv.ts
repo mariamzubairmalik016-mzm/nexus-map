@@ -1,6 +1,6 @@
 /**
  * Central frontend configuration. Every module reads its settings from here
- * instead of touching `import.meta.env` directly, so there is one place to see
+ * instead of touching `process.env` directly, so there is one place to see
  * what the browser bundle depends on.
  *
  * SECURITY: only VITE_-prefixed variables exist in the browser, and only
@@ -20,11 +20,11 @@ const readString = (value: unknown, fallback: string) => {
  * is still honoured so existing .env files keep working.
  */
 const resolveApiUrl = () => {
-  const legacy = readString(import.meta.env.VITE_API_URL, "");
+  const legacy = readString(process.env.NEXT_PUBLIC_API_URL, "");
   if (legacy) return legacy.replace(/\/+$/, "");
 
-  const base = readString(import.meta.env.VITE_API_BASE_URL, "http://localhost:5000");
-  return `${base.replace(/\/+$/, "")}/api`;
+  const base = readString(process.env.NEXT_PUBLIC_API_BASE_URL, "");
+  return base ? `${base.replace(/\/+$/, "")}/api` : "/api";
 };
 
 export type MapProviderId = "osm" | "tomtom";
@@ -33,20 +33,20 @@ export const appEnv = {
   /** Fully-qualified API root, e.g. http://localhost:5000/api */
   apiUrl: resolveApiUrl(),
 
-  supabaseUrl: readString(import.meta.env.VITE_SUPABASE_URL, ""),
-  supabaseAnonKey: readString(import.meta.env.VITE_SUPABASE_ANON_KEY, ""),
+  supabaseUrl: readString(process.env.NEXT_PUBLIC_SUPABASE_URL, ""),
+  supabaseAnonKey: readString(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, ""),
 
   /**
    * Base map provider. "osm" uses OpenStreetMap raster tiles directly;
    * "tomtom" uses the backend tile proxy (keeps the TomTom key server-side).
    */
-  mapProvider: readString(import.meta.env.VITE_MAP_PROVIDER, "osm") as MapProviderId,
+  mapProvider: readString(process.env.NEXT_PUBLIC_MAP_PROVIDER, "osm") as MapProviderId,
 
   /** Where the map opens when there is no GPS fix and no saved centre. */
   defaultCenter: {
-    lat: Number(import.meta.env.VITE_MAP_DEFAULT_LAT ?? 30.3753),
-    lng: Number(import.meta.env.VITE_MAP_DEFAULT_LNG ?? 69.3451),
-    zoom: Number(import.meta.env.VITE_MAP_DEFAULT_ZOOM ?? 5),
+    lat: Number(process.env.NEXT_PUBLIC_MAP_DEFAULT_LAT ?? 30.3753),
+    lng: Number(process.env.NEXT_PUBLIC_MAP_DEFAULT_LNG ?? 69.3451),
+    zoom: Number(process.env.NEXT_PUBLIC_MAP_DEFAULT_ZOOM ?? 5),
   },
 } as const;
 

@@ -269,7 +269,7 @@ const MapLibreMap = ({
     map.on("rotatestart", markUserInteraction);
 
     // Exposed in development only, to inspect map state from the console.
-    if (import.meta.env.DEV) {
+    if ((process.env.NODE_ENV === 'development')) {
       (window as unknown as { __nexusMap?: maplibregl.Map }).__nexusMap = map;
     }
     map.on("zoom", () => setZoom(map.getZoom()));
@@ -279,7 +279,7 @@ const MapLibreMap = ({
     map.on("error", (event) => {
       const message = String((event as { error?: Error }).error?.message ?? "");
       if (/style/i.test(message)) setStyleFailed(true);
-      if (import.meta.env.DEV) console.debug("[map]", message);
+      if ((process.env.NODE_ENV === 'development')) console.debug("[map]", message);
     });
 
     return () => {
@@ -464,7 +464,7 @@ const MapLibreMap = ({
     // single choke point every marker goes through.
     const add = (lng: number, lat: number, element: HTMLElement, options?: maplibregl.MarkerOptions) => {
       if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-        if (import.meta.env.DEV) console.warn("[map] skipped marker with invalid coordinates", { lng, lat });
+        if ((process.env.NODE_ENV === 'development')) console.warn("[map] skipped marker with invalid coordinates", { lng, lat });
         return null;
       }
       const marker = new maplibregl.Marker({ element, ...options }).setLngLat([lng, lat]).addTo(map);

@@ -1,4 +1,4 @@
-// Ensure TypeScript knows about Vite's import.meta.env keys
+// Ensure TypeScript knows about Vite's process.env keys
 declare global {
   interface ImportMetaEnv {
     readonly VITE_SUPABASE_URL?: string;

@@ -8,6 +8,7 @@ backend/.env.local
 .vscode
 *.log
 *.tsbuildinfo
+.next
 
 # Stale duplicate scaffold (Jul 14) kept locally, never tracked.
 # It carries its own .env files with real credentials.
