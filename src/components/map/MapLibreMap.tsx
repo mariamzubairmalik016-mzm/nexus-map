@@ -106,6 +106,23 @@ const whenStyleReady = (map: maplibregl.Map, operation: () => void): (() => void
   return () => map.off("styledata", retry);
 };
 
+/**
+ * Escapes text before it is interpolated into marker or popup HTML.
+ *
+ * Popup content includes community notes, which are written by users, and
+ * incident text from a third-party provider. Both bypass React's automatic
+ * escaping because they go through `setHTML`/`innerHTML`, so a title
+ * containing markup would otherwise execute — stored XSS. Everything
+ * user- or provider-supplied must pass through here.
+ */
+const escapeHtml = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 /** Builds a DOM element for a marker without going through React rendering. */
 const createElement = (html: string, className = "") => {
   const element = document.createElement("div");
@@ -124,6 +141,18 @@ const alertPinHtml = (alert: RoadAlert) => {
 
 const dotHtml = (color: string, label: string) =>
   `<div title="${label}" style="width:26px;height:26px;border-radius:9999px;background:${color};border:3px solid #020617;box-shadow:0 4px 16px rgba(0,0,0,.55);display:grid;place-items:center;color:#020617;font-weight:800;font-size:11px">${label.charAt(0)}</div>`;
+
+const googlePinHtml = () => `
+  <svg width="32" height="48" viewBox="0 0 32 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="cursor:pointer; filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.4));">
+    <path d="M16 0C7.16344 0 0 7.16344 0 16C0 27.2 16 48 16 48C16 48 32 27.2 32 16C32 7.16344 24.8366 0 16 0Z" fill="#EA4335"/>
+    <path d="M16 23C19.866 23 23 19.866 23 16C23 12.134 19.866 9 16 9C12.134 9 9 12.134 9 16C9 19.866 12.134 23 16 23Z" fill="#7C0000" fill-opacity="0.3"/>
+    <path d="M16 22C19.3137 22 22 19.3137 22 16C22 12.6863 19.3137 10 16 10C12.6863 10 10 12.6863 10 16C10 19.3137 12.6863 22 16 22Z" fill="white"/>
+  </svg>
+`;
+
+const blueDotHtml = () => `
+  <div style="width:18px;height:18px;background-color:#4285F4;border-radius:50%;border:3px solid white;box-shadow:0 0 6px rgba(0,0,0,0.5);"></div>
+`;
 
 const MapLibreMap = ({
   start,
@@ -314,8 +343,8 @@ const MapLibreMap = ({
         source: ROUTE_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-color": "#020617",
-          "line-width": ["case", ["==", ["get", "selected"], 1], 11, 7],
+          "line-color": "#4285F4",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 4, 16, 8],
           "line-opacity": 0.55,
         },
       });
@@ -429,55 +458,62 @@ const MapLibreMap = ({
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
-    const add = (lng: number, lat: number, element: HTMLElement) => {
-      const marker = new maplibregl.Marker({ element }).setLngLat([lng, lat]).addTo(map);
+    // MapLibre throws on a non-finite LngLat, and a throw in here unmounts the
+    // whole React tree (blank page). One malformed record — an alert missing
+    // its coordinates, say — must never be able to do that, so this is the
+    // single choke point every marker goes through.
+    const add = (lng: number, lat: number, element: HTMLElement, options?: maplibregl.MarkerOptions) => {
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        if (import.meta.env.DEV) console.warn("[map] skipped marker with invalid coordinates", { lng, lat });
+        return null;
+      }
+      const marker = new maplibregl.Marker({ element, ...options }).setLngLat([lng, lat]).addTo(map);
       markersRef.current.push(marker);
       return marker;
     };
 
     if (isUsable(start)) {
-      add(start.longitude, start.latitude, createElement(dotHtml("#34d399", "Start")));
+      add(start.longitude, start.latitude, createElement(googlePinHtml("#34d399")), { anchor: "bottom" });
     }
     if (isUsable(destination)) {
-      add(destination.longitude, destination.latitude, createElement(dotHtml("#f87171", "Destination")));
+      add(destination.longitude, destination.latitude, createElement(googlePinHtml()), { anchor: "bottom" });
     }
-
     if (isUsable(currentLocation)) {
-      add(
-        currentLocation.longitude,
-        currentLocation.latitude,
-        createElement(
-          `<div style="position:relative;width:20px;height:20px">
-             <span class="nexus-pin-ring" style="background:#22d3ee55"></span>
-             <span class="nexus-pin" style="background:#22d3ee;width:20px;height:20px"></span>
-           </div>`,
-        ),
-      );
+      const el = createElement(blueDotHtml(), "nexus-live-marker");
+      el.title = "Your location";
+      add(currentLocation.longitude, currentLocation.latitude, el);
     }
 
     incidents.forEach((incident) => {
       if (!incident.position) return;
       const element = createElement(dotHtml("#fbbf24", "Incident"));
       const marker = add(incident.position.longitude, incident.position.latitude, element);
-      marker.setPopup(
+      marker?.setPopup(
         new maplibregl.Popup({ offset: 18 }).setHTML(
-          `<strong>${incident.title}</strong><br/>${incident.description ?? ""}`,
+          `<strong>${escapeHtml(incident.title)}</strong><br/>${escapeHtml(incident.description)}`,
         ),
       );
     });
 
     communityNotes.forEach((note) => {
+      if (!isUsable(note.position)) return;
       const element = createElement(dotHtml("#a78bfa", "Community"));
       const marker = add(note.position.longitude, note.position.latitude, element);
-      marker.setPopup(
+      marker?.setPopup(
         new maplibregl.Popup({ offset: 18 }).setHTML(
-          `<strong>${note.title}</strong><p>${note.description}</p><small>${note.status} · ${note.helpfulCount} helpful</small>`,
+          `<strong>${escapeHtml(note.title)}</strong><p>${escapeHtml(note.description)}</p>` +
+            `<small>${escapeHtml(note.status)} · ${escapeHtml(note.helpfulCount)} helpful</small>`,
         ),
       );
     });
 
     // Road alerts: individual pins when zoomed in, count badges when zoomed out.
-    const alerts = roadAlerts ?? [];
+    // Filtered up front: in the clustering branch a single alert with a missing
+    // coordinate would turn its whole cell's average into NaN, taking out every
+    // other alert in that cell rather than just itself.
+    const alerts = (roadAlerts ?? []).filter(
+      (alert) => Number.isFinite(alert.latitude) && Number.isFinite(alert.longitude),
+    );
     if (zoom >= 11) {
       alerts.forEach((alert) => {
         const element = createElement(alertPinHtml(alert));

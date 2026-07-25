@@ -37,6 +37,33 @@ export type AlertsFilter = {
 
 export type AlertsResult = { alerts: RoadAlert[]; meta: SourcesMeta; live: boolean };
 
+/**
+ * An alert is only usable if it can actually be placed on the map. A response
+ * is not guaranteed to match `RoadAlert` just because it is typed as one — a
+ * legacy or demo payload can carry its position as a `location` string with no
+ * numeric latitude/longitude, and MapLibre throws on a non-finite LngLat, which
+ * unmounts the map and blanks the page.
+ *
+ * Dropping such records here, at the single boundary where alerts enter the
+ * app, keeps both React state and the IndexedDB cache clean — otherwise one bad
+ * record gets persisted and keeps breaking the map long after the server is
+ * fixed.
+ */
+export const isPlaceableAlert = (alert: RoadAlert): boolean =>
+  Number.isFinite(alert?.latitude) && Number.isFinite(alert?.longitude);
+
+const isPlaceable = isPlaceableAlert;
+
+export const usableAlerts = (alerts: RoadAlert[]): RoadAlert[] => {
+  const usable = alerts.filter(isPlaceable);
+  if (import.meta.env.DEV && usable.length !== alerts.length) {
+    console.warn(
+      `[roadAlerts] dropped ${alerts.length - usable.length} alert(s) with no usable coordinates`,
+    );
+  }
+  return usable;
+};
+
 export const roadAlertsService = {
   // Mixed-source fetch. Caches real alerts; falls back to the offline cache
   // (preserving each alert's original source) when the network is unavailable.
@@ -53,7 +80,7 @@ export const roadAlertsService = {
 
     // Offline-first: serve the cache directly without touching the network.
     if (networkStatus.isOffline()) {
-      const cached = (await offlineDb.getRoadAlerts().catch(() => [])).map((a) => ({
+      const cached = usableAlerts(await offlineDb.getRoadAlerts().catch(() => [])).map((a) => ({
         ...a,
         originalSource: a.source,
         source: "cached" as const,
@@ -65,7 +92,7 @@ export const roadAlertsService = {
       const response = await fetch(`${API_URL}/road-alerts?${params.toString()}`);
       if (!response.ok) throw new Error(String(response.status));
       const json = (await response.json()) as { data: RoadAlert[]; meta?: { sources?: SourcesMeta } };
-      const alerts = json.data ?? [];
+      const alerts = usableAlerts(json.data ?? []);
       const meta = json.meta?.sources ?? EMPTY_SOURCES_META;
       // Cache only real alerts (never demo) so offline shows genuine data.
       void offlineDb.saveRoadAlerts(alerts.filter((a) => a.source !== "demo")).catch(() => {});
@@ -73,7 +100,7 @@ export const roadAlertsService = {
     } catch {
       // Offline / server down: serve the cache, keeping the original source.
       try {
-        const cached = (await offlineDb.getRoadAlerts()).map((a) => ({
+        const cached = usableAlerts(await offlineDb.getRoadAlerts()).map((a) => ({
           ...a,
           originalSource: a.source,
           source: "cached" as const,

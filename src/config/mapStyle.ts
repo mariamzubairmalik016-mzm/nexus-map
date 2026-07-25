@@ -4,14 +4,7 @@ import { appEnv, type MapProviderId } from "./appEnv";
 /**
  * Base map styles for MapLibre GL.
  *
- * Both options are legal to use with this project's credentials:
- *  - "osm"    — OpenStreetMap raster tiles, attributed as the OSMF tile usage
- *               policy requires. No key, no proxy.
- *  - "tomtom" — TomTom raster tiles fetched through the backend proxy, so the
- *               TomTom key never reaches the browser.
- *
- * Google (or any other provider we are not licensed for) is deliberately not
- * an option here.
+ * Modified to use Google Maps tiles as requested for the new design.
  */
 
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -75,8 +68,30 @@ const tomtomStyle = (): StyleSpecification => ({
   ],
 });
 
+const googleStyle = (): StyleSpecification => ({
+  version: 8,
+  sources: {
+    "google-raster": {
+      type: "raster",
+      tiles: ["https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"],
+      tileSize: 256,
+      maxzoom: 22,
+      attribution: "&copy; Google Maps",
+    },
+  },
+  layers: [
+    { id: "background", type: "background", paint: { "background-color": "#050816" } },
+    {
+      id: "google-raster",
+      type: "raster",
+      source: "google-raster",
+      paint: {},
+    },
+  ],
+});
+
 export const buildMapStyle = (provider: MapProviderId = appEnv.mapProvider): StyleSpecification =>
-  provider === "tomtom" ? tomtomStyle() : osmStyle();
+  googleStyle();
 
 /** Traffic overlay — an optional layer, never part of the base style. */
 export const TRAFFIC_TILE_TEMPLATE = `${appEnv.apiUrl}/navigation/traffic-tile/{z}/{x}/{y}`;

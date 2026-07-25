@@ -56,11 +56,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const client = supabase;
     if (!client) return;
 
-    const { data } = await client
-      .from("profiles")
-      .select("*")
-      .eq("id", authUser.id)
-      .maybeSingle();
+    // A thrown query (offline, DNS failure) must not become an unhandled
+    // rejection in the auth listener — fall through to the derived profile so
+    // the user still gets a usable session. The query builder is a thenable,
+    // not a real Promise, so this uses try/catch rather than .catch().
+    let data: Profile | null = null;
+    try {
+      const result = await client.from("profiles").select("*").eq("id", authUser.id).maybeSingle();
+      data = (result.data as Profile | null) ?? null;
+    } catch (cause) {
+      if (import.meta.env.DEV) console.error("[auth] profile load failed", cause);
+    }
 
     if (data) {
       setProfile(data as Profile);
@@ -89,16 +95,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    void supabase.auth.getSession().then(async ({ data }) => {
-      const currentUser = data.session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) await loadProfile(currentUser);
-      setLoading(false);
-    });
+    // `active` stops state updates after unmount (StrictMode mounts twice in
+    // development), which would otherwise leak and warn.
+    let active = true;
+
+    void supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        if (!active) return;
+        const currentUser = data.session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) await loadProfile(currentUser);
+      })
+      .catch((cause: unknown) => {
+        // Session restore can reject outright — offline, Supabase unreachable,
+        // a corrupt stored token. Without this the promise never settles,
+        // `loading` stays true and every consumer renders its spinner forever:
+        // an indefinite blank screen instead of a usable signed-out app.
+        if (import.meta.env.DEV) console.error("[auth] session restore failed", cause);
+        if (active) setUser(null);
+      })
+      .finally(() => {
+        // Always resolve the gate, on success or failure.
+        if (active) setLoading(false);
+      });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
@@ -106,9 +131,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setProfile(null);
       }
+      // A late auth event must also clear the gate — otherwise a slow or failed
+      // getSession could leave the app stuck even though we now know the state.
+      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [loadProfile]);
 
   const signIn = async (email: string, password: string) => {

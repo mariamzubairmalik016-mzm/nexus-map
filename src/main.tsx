@@ -13,9 +13,9 @@ import "@fontsource-variable/space-grotesk";
 import "@fontsource-variable/inter";
 import "@fontsource/marcellus"; // antique display font for hero headings
 
-// @ts-ignore: side-effect CSS imports may not have type declarations in this setup
+// CSS side-effect imports are typed by vite/client (referenced in
+// src/vite-env.d.ts), so these need no suppression.
 import "leaflet/dist/leaflet.css";
-// @ts-ignore: side-effect CSS imports may not have type declarations in this setup
 import "./index.css";
 
 const rootElement = document.getElementById("root");

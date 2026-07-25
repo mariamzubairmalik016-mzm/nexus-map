@@ -21,11 +21,12 @@ import toast from "react-hot-toast";
 
 import SearchAutocomplete from "../../components/map/SearchAutocomplete";
 import MapLibreMap from "../../components/map/MapLibreMap";
+import ErrorBoundary from "../../components/ui/ErrorBoundary";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { navigationApi } from "../../services/navigationApi";
 import { offlineDb } from "../../services/offlineDb";
-import { roadAlertsService } from "../../services/roadAlertsService";
+import { roadAlertsService, usableAlerts } from "../../services/roadAlertsService";
 import { networkStatus } from "../../services/networkStatus";
 import { savedRouteService, savedRouteToAlternative } from "../../services/savedRouteService";
 import { offlineRegionService } from "../../services/offlineRegionService";
@@ -234,8 +235,12 @@ const MapPage = () => {
   }, []);
 
   useEffect(() => {
+    // Hydrate from the cache on first paint. Filtered like every other entry
+    // point: a cache written before validation existed can still hold an alert
+    // with no coordinates, which would crash the map on render.
     void offlineDb
       .getRoadAlerts()
+      .then((cached) => usableAlerts(cached))
       .then((cached) => setRoadAlerts((current) => (current.length ? current : cached)))
       .catch(() => undefined);
   }, []);
@@ -430,6 +435,13 @@ const MapPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (start && destination && routes.length === 0 && !busy) {
+      void calculateRoutes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, destination]);
+
   /** Stores the selected route (geometry + instructions) for offline reuse. */
   const saveCurrentRoute = async () => {
     if (!selectedRoute) return;
@@ -575,8 +587,18 @@ const MapPage = () => {
           </h1>
         </div>
 
-        <div className="grid overflow-hidden rounded-[34px] border border-white/10 bg-[#050816] shadow-2xl xl:grid-cols-[420px_minmax(0,1fr)]">
-          <aside className="max-h-[920px] overflow-y-auto border-b border-white/10 p-5 xl:border-b-0 xl:border-r">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="nexus-glass-elevated grid overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)]"
+        >
+          <motion.aside
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="nexus-glass max-h-[920px] overflow-y-auto border-b border-white/10 p-5 xl:border-b-0 xl:border-r"
+          >
             <div className="flex items-center gap-3">
               <Route className="text-purple-400" />
               <h2 className="text-2xl font-bold">
@@ -646,7 +668,19 @@ const MapPage = () => {
                   setDestinationQuery(value);
                   setSelectedDestination(null);
                 }}
-                onSelect={setSelectedDestination}
+                onSelect={async (suggestion) => {
+                  setSelectedDestination(suggestion);
+                  
+                  let startCoords = geo.coordinates;
+                  if (!startCoords && !selectedStartRef.current) {
+                    startCoords = await geo.getCurrentLocation();
+                    if (startCoords) {
+                      adoptGpsAsStart(startCoords);
+                    }
+                  } else if (startCoords && !selectedStartRef.current) {
+                    adoptGpsAsStart(startCoords);
+                  }
+                }}
                 accent="red"
               />
             </div>
@@ -972,26 +1006,32 @@ const MapPage = () => {
                 </button>
               </div>
             </div>
-          </aside>
+          </motion.aside>
 
           <div className="relative min-h-[760px]">
-            <MapLibreMap
-              start={start}
-              destination={destination}
-              selectedRoute={activeRoute}
-              alternatives={routes}
-              // Live tracking wins when it is running; otherwise the one-shot
-              // GPS fix drives the "You are here" marker and auto-centring.
-              currentLocation={live.current ?? geo.coordinates}
-              incidents={incidents}
-              communityNotes={communityNotes}
-              roadAlerts={roadAlerts}
-              showTraffic={showTraffic}
-              recenterRequest={recenterRequest}
-              onAlertSelect={setSelectedAlert}
-              onBoundsChange={handleBoundsChange}
-              onRouteSelect={setSelectedRoute}
-            />
+            {/* Scoped boundary: the map talks to a native GL library and to
+                third-party data, so it is the most likely thing to throw. If it
+                does, the planner, alerts and the rest of the page must keep
+                working instead of the whole route going blank. */}
+            <ErrorBoundary label="map" inline>
+              <MapLibreMap
+                start={start}
+                destination={destination}
+                selectedRoute={activeRoute}
+                alternatives={routes}
+                // Live tracking wins when it is running; otherwise the one-shot
+                // GPS fix drives the "You are here" marker and auto-centring.
+                currentLocation={live.current ?? geo.coordinates}
+                incidents={incidents}
+                communityNotes={communityNotes}
+                roadAlerts={roadAlerts}
+                showTraffic={showTraffic}
+                recenterRequest={recenterRequest}
+                onAlertSelect={setSelectedAlert}
+                onBoundsChange={handleBoundsChange}
+                onRouteSelect={setSelectedRoute}
+              />
+            </ErrorBoundary>
 
             <div className="pointer-events-none absolute left-5 top-5 z-[700] rounded-2xl border border-white/10 bg-slate-950/90 px-4 py-3 backdrop-blur-xl">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1044,7 +1084,7 @@ const MapPage = () => {
               )}
             </AnimatePresence>
           </div>
-        </div>
+          </motion.div>
       </div>
     </section>
   );

@@ -138,6 +138,30 @@ const NavigationMap = ({
     iconAnchor: [15, 15],
   });
 
+  const googleMapIcon = L.divIcon({
+    className: "",
+    html: `
+      <svg width="28" height="42" viewBox="0 0 32 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 0C7.16344 0 0 7.16344 0 16C0 27.2 16 48 16 48C16 48 32 27.2 32 16C32 7.16344 24.8366 0 16 0Z" fill="#EA4335"/>
+        <path d="M16 23C19.866 23 23 19.866 23 16C23 12.134 19.866 9 16 9C12.134 9 9 12.134 9 16C9 19.866 12.134 23 16 23Z" fill="#7C0000" fill-opacity="0.3"/>
+        <path d="M16 22C19.3137 22 22 19.3137 22 16C22 12.6863 19.3137 10 16 10C12.6863 10 10 12.6863 10 16C10 19.3137 12.6863 22 16 22Z" fill="white"/>
+      </svg>
+    `,
+    iconSize: [28, 42],
+    iconAnchor: [14, 42],
+    popupAnchor: [0, -42],
+  });
+
+  const blueDotIcon = L.divIcon({
+    className: "nexus-blue-dot",
+    html: \`
+      <div style="width:16px;height:16px;background-color:#4285F4;border-radius:50%;border:2.5px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>
+    \`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    popupAnchor: [0, -8],
+  });
+
   return (
     <MapContainer
       center={[25, 20]}
@@ -147,18 +171,10 @@ const NavigationMap = ({
     >
       <ZoomControl position="bottomright" />
 
-      {/* OpenStreetMap base layer. The service worker caches these tiles when an
-          area is downloaded, so the map still renders offline. Online, the
-          opaque TomTom layer below renders on top; offline its tiles fail and
-          this cached base shows through. */}
+      {/* Google Maps standard tile layer */}
       <TileLayer
-        attribution="&copy; OpenStreetMap contributors"
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-
-      <TileLayer
-        attribution="&copy; TomTom"
-        url={`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/navigation/map-tile/{z}/{x}/{y}`}
+        attribution="&copy; Google Maps"
+        url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
       />
 
       {/* Traffic is OFF by default — only loaded when the user enables it, so it
@@ -186,15 +202,17 @@ const NavigationMap = ({
             click: () => onRouteSelect(route),
           }}
           pathOptions={{
-            color: selected ? "#2563eb" : "#94a3b8",
-            weight: selected ? 8 : 5,
-            opacity: selected ? 0.95 : 0.7,
+            color: selected ? "#4285F4" : "#9AA0A6",
+            weight: selected ? 6 : 4,
+            opacity: selected ? 1 : 0.8,
+            lineCap: "round",
+            lineJoin: "round"
           }}
         />
       ))}
 
       {start && (
-        <Marker position={[start.latitude, start.longitude]}>
+        <Marker position={[start.latitude, start.longitude]} icon={googleMapIcon}>
           <Popup>Starting point</Popup>
         </Marker>
       )}
@@ -202,6 +220,7 @@ const NavigationMap = ({
       {destination && (
         <Marker
           position={[destination.latitude, destination.longitude]}
+          icon={googleMapIcon}
         >
           <Popup>Destination</Popup>
         </Marker>
@@ -227,6 +246,7 @@ const NavigationMap = ({
               currentLocation.latitude,
               currentLocation.longitude,
             ]}
+            icon={blueDotIcon}
           >
             <Tooltip permanent direction="top">
               Your location
