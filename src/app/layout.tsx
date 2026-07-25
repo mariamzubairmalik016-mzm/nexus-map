@@ -4,6 +4,11 @@ import { Inter, Space_Grotesk, Marcellus } from "next/font/google";
 import "../index.css";
 import "leaflet/dist/leaflet.css";
 
+// All pages in this app use client-side hooks (useAuth, useGeolocation, etc.)
+// so we must opt out of static prerendering at build time.
+export const dynamic = "force-dynamic";
+
+
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
