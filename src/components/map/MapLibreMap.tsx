@@ -473,7 +473,7 @@ const MapLibreMap = ({
     };
 
     if (isUsable(start)) {
-      add(start.longitude, start.latitude, createElement(googlePinHtml("#34d399")), { anchor: "bottom" });
+      add(start.longitude, start.latitude, createElement(googlePinHtml()), { anchor: "bottom" });
     }
     if (isUsable(destination)) {
       add(destination.longitude, destination.latitude, createElement(googlePinHtml()), { anchor: "bottom" });
