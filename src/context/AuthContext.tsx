@@ -91,6 +91,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!supabase) {
+      const guestUser = {
+        id: "guest-user",
+        email: "guest@nexusmap.app",
+        user_metadata: { full_name: "Guest Explorer" },
+      } as User;
+      setUser(guestUser);
+      setProfile({
+        id: "guest-user",
+        full_name: "Guest Explorer",
+        email: "guest@nexusmap.app",
+        avatar_url: null,
+        phone: null,
+        country: null,
+        city: null,
+        bio: null,
+        role: "user",
+      });
       setLoading(false);
       return;
     }
