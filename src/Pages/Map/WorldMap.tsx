@@ -22,13 +22,13 @@ const Controller = ({ coordinates, route }: { coordinates: Coordinates | null; r
 
 const googleMapIcon = L.divIcon({
   className: "",
-  html: \`
+  html: `
     <svg width="28" height="42" viewBox="0 0 32 48" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M16 0C7.16344 0 0 7.16344 0 16C0 27.2 16 48 16 48C16 48 32 27.2 32 16C32 7.16344 24.8366 0 16 0Z" fill="#EA4335"/>
       <path d="M16 23C19.866 23 23 19.866 23 16C23 12.134 19.866 9 16 9C12.134 9 9 12.134 9 16C9 19.866 12.134 23 16 23Z" fill="#7C0000" fill-opacity="0.3"/>
       <path d="M16 22C19.3137 22 22 19.3137 22 16C22 12.6863 19.3137 10 16 10C12.6863 10 10 12.6863 10 16C10 19.3137 12.6863 22 16 22Z" fill="white"/>
     </svg>
-  \`,
+  `,
   iconSize: [28, 42],
   iconAnchor: [14, 42],
   popupAnchor: [0, -42],

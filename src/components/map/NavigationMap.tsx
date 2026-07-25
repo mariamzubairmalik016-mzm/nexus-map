@@ -154,9 +154,9 @@ const NavigationMap = ({
 
   const blueDotIcon = L.divIcon({
     className: "nexus-blue-dot",
-    html: \`
+    html: `
       <div style="width:16px;height:16px;background-color:#4285F4;border-radius:50%;border:2.5px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4);"></div>
-    \`,
+    `,
     iconSize: [16, 16],
     iconAnchor: [8, 8],
     popupAnchor: [0, -8],
