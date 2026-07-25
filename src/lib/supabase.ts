@@ -1,5 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
-
 // Ensure TypeScript knows about Vite's import.meta.env keys
 declare global {
   interface ImportMetaEnv {
@@ -12,11 +10,6 @@ declare global {
   }
 }
 
-const url = import.meta.env.VITE_SUPABASE_URL?.trim();
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
-
-export const isSupabaseConfigured = Boolean(url && key);
-
-export const supabase = isSupabaseConfigured
-  ? createClient(url as string, key as string)
-  : null;
+// Mocking supabase client until we finish migrating to Neon backend
+export const supabase = null;
+export const isSupabaseConfigured = false;

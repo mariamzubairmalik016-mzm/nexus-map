@@ -10,7 +10,7 @@ import {
   Trash2,
   WifiOff,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 import { offlineRegionService } from "../../services/offlineRegionService";
@@ -53,7 +53,7 @@ const regionCenter = (region: OfflineRegion) => ({
 });
 
 const OfflineMaps = () => {
-  const navigate = useNavigate();
+  const navigate = useRouter();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState("City");
   const [areas, setAreas] = useState<OfflineRegion[]>([]);

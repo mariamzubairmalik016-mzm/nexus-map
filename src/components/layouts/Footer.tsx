@@ -1,5 +1,6 @@
 import { Github, Instagram, Mail, Map, Twitter } from "lucide-react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const Footer = () => (
   <footer className="relative z-10 border-t border-white/10 bg-[#020617]">
@@ -23,19 +24,19 @@ const Footer = () => (
       <div>
         <h3 className="font-semibold">Explore</h3>
         <div className="mt-4 space-y-3 text-sm text-slate-400">
-          <Link to="/map" className="block hover:text-white">World Map</Link>
-          <Link to="/explore" className="block hover:text-white">Destinations</Link>
-          <Link to="/community" className="block hover:text-white">Community</Link>
-          <Link to="/offline-maps" className="block hover:text-white">Offline Maps</Link>
+          <Link  href="/map" className="block hover:text-white">World Map</Link>
+          <Link  href="/explore" className="block hover:text-white">Destinations</Link>
+          <Link  href="/community" className="block hover:text-white">Community</Link>
+          <Link  href="/offline-maps" className="block hover:text-white">Offline Maps</Link>
         </div>
       </div>
       <div>
         <h3 className="font-semibold">Account</h3>
         <div className="mt-4 space-y-3 text-sm text-slate-400">
-          <Link to="/dashboard" className="block hover:text-white">Dashboard</Link>
-          <Link to="/profile" className="block hover:text-white">Profile</Link>
-          <Link to="/settings" className="block hover:text-white">Settings</Link>
-          <Link to="/notifications" className="block hover:text-white">Notifications</Link>
+          <Link  href="/dashboard" className="block hover:text-white">Dashboard</Link>
+          <Link  href="/profile" className="block hover:text-white">Profile</Link>
+          <Link  href="/settings" className="block hover:text-white">Settings</Link>
+          <Link  href="/notifications" className="block hover:text-white">Notifications</Link>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Heart, LoaderCircle, MapPin, Search, Sparkles, Star } from "lucide-react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import toast from "react-hot-toast";
 
@@ -178,7 +179,7 @@ const Explore = () => {
                 {countryFlag(featured.country_iso2)} {featured.name}
               </h2>
               <Link
-                to={`/map?place=${encodeURIComponent(featured.name)}&lat=${featured.latitude}&lng=${featured.longitude}`}
+                 href={`/map?place=${encodeURIComponent(featured.name)}&lat=${featured.latitude}&lng=${featured.longitude}`}
                 className="nexus-button-primary mt-4 w-fit"
               >
                 <MapPin size={17} /> Open on Map
@@ -333,7 +334,7 @@ const Explore = () => {
                     </p>
 
                     <Link
-                      to={`/map?place=${encodeURIComponent(city.name)}&lat=${city.latitude}&lng=${city.longitude}`}
+                       href={`/map?place=${encodeURIComponent(city.name)}&lat=${city.latitude}&lng=${city.longitude}`}
                       className="nexus-button-primary mt-5 w-full"
                     >
                       <MapPin size={17} /> Open on Map

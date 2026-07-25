@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import LoginForm from "../../components/auth/LoginForm";
 import AuthShell from "../../components/auth/AuthShell";
 
@@ -10,7 +11,7 @@ const Login = () => (
     footer={
       <>
         New here?{" "}
-        <Link to="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200">
+        <Link  href="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200">
           Create account
         </Link>
       </>
@@ -18,7 +19,7 @@ const Login = () => (
   >
     <LoginForm />
     <p className="mt-4 text-center text-xs text-slate-500">
-      <Link to="/forgot-password" className="hover:text-slate-300">
+      <Link  href="/forgot-password" className="hover:text-slate-300">
         Forgot your password?
       </Link>
     </p>

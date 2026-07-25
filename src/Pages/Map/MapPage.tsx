@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Bike,
@@ -20,7 +20,11 @@ import {
 import toast from "react-hot-toast";
 
 import SearchAutocomplete from "../../components/map/SearchAutocomplete";
-import MapLibreMap from "../../components/map/MapLibreMap";
+import dynamic from "next/dynamic";
+
+const MapLibreMap = dynamic(() => import("../../components/map/MapLibreMap"), {
+  ssr: false,
+});
 import ErrorBoundary from "../../components/ui/ErrorBoundary";
 import { AnimatePresence, motion } from "framer-motion";
 

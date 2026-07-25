@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Bell, Bot, Compass, Download, HardDrive, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, TriangleAlert, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
@@ -90,7 +91,7 @@ const Dashboard = () => {
           <p className="text-sm uppercase tracking-[.25em] text-cyan-400">Personal navigation workspace</p>
           <h1 className="text-hero-display mt-4 text-4xl leading-tight sm:text-5xl">Welcome back, <span className="block break-words text-gradient">{displayName}</span></h1>
           <p className="mt-4 max-w-2xl leading-7 text-slate-400">Explore the world, plan smarter journeys, download any map and manage your complete activity.</p>
-          <div className="mt-6 flex flex-wrap gap-3"><Link to="/map" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950"><Compass size={18} />Explore World Map</Link><Link to="/ai-planner" className="inline-flex items-center gap-2 rounded-2xl border border-purple-400/20 bg-purple-400/10 px-5 py-3 text-purple-200"><Bot size={18} />Plan with Nexus AI</Link></div>
+          <div className="mt-6 flex flex-wrap gap-3"><Link  href="/map" className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 font-semibold text-slate-950"><Compass size={18} />Explore World Map</Link><Link  href="/ai-planner" className="inline-flex items-center gap-2 rounded-2xl border border-purple-400/20 bg-purple-400/10 px-5 py-3 text-purple-200"><Bot size={18} />Plan with Nexus AI</Link></div>
         </motion.div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -146,11 +147,11 @@ const Dashboard = () => {
           <article className="min-h-[400px] rounded-[30px] border border-white/10 bg-white/[.04] p-6">
             <div className="flex items-center gap-4"><div className="rounded-2xl bg-cyan-400/10 p-4 text-cyan-400"><UserRound /></div><div className="min-w-0"><p className="truncate text-xl font-bold">{displayName}</p><p className="truncate text-sm text-slate-400">{user?.email}</p></div></div>
             <div className="mt-6 flex items-center justify-between rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4"><div className="flex items-center gap-3"><ShieldCheck className="text-emerald-300" /><div><p className="font-semibold text-emerald-200">Verified account</p><p className="text-xs text-emerald-200/60">Secure Nexus access enabled</p></div></div><span className="text-xs capitalize text-emerald-300">{profile?.role || "user"}</span></div>
-            <div className="mt-6 grid grid-cols-2 gap-3">{[["/profile", UserRound, "Profile"], ["/settings", Settings, "Settings"], ["/notifications", Bell, "Notifications"], ["/history", Route, "History"]].map(([path, Icon, label]) => <Link key={String(path)} to={String(path)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm"><Icon size={17} />{String(label)}</Link>)}</div>
+            <div className="mt-6 grid grid-cols-2 gap-3">{[["/profile", UserRound, "Profile"], ["/settings", Settings, "Settings"], ["/notifications", Bell, "Notifications"], ["/history", Route, "History"]].map(([path, Icon, label]) => <Link key={String(path)}  href={String(path)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm"><Icon size={17} />{String(label)}</Link>)}</div>
           </article>
         </div>
 
-        <div className="mt-8"><h2 className="text-3xl font-bold">Quick Actions</h2><div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{quick.map(([path, Icon, title, description]) => <Link key={path} to={path} className="min-h-52 rounded-[26px] border border-white/10 bg-white/[.04] p-6 transition hover:-translate-y-1"><div className="inline-flex rounded-2xl bg-cyan-400/10 p-3 text-cyan-400"><Icon size={25} /></div><h3 className="mt-5 text-xl font-bold">{title}</h3><p className="mt-3 text-slate-400">{description}</p></Link>)}</div></div>
+        <div className="mt-8"><h2 className="text-3xl font-bold">Quick Actions</h2><div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{quick.map(([path, Icon, title, description]) => <Link key={path}  href={path} className="min-h-52 rounded-[26px] border border-white/10 bg-white/[.04] p-6 transition hover:-translate-y-1"><div className="inline-flex rounded-2xl bg-cyan-400/10 p-3 text-cyan-400"><Icon size={25} /></div><h3 className="mt-5 text-xl font-bold">{title}</h3><p className="mt-3 text-slate-400">{description}</p></Link>)}</div></div>
       </div>
     </section>
   );

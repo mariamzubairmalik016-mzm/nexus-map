@@ -9,7 +9,7 @@ import PageTransition from "../components/ui/PageTransition";
 import CinematicBackground from "../components/ui/CinematicBackground";
 
 const MainLayout = () => {
-  const location = useLocation();
+  const location = usePathname();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });

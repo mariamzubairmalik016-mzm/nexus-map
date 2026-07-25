@@ -1,5 +1,6 @@
 import { Compass, Home } from "lucide-react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 
 const NotFound = () => {
@@ -21,7 +22,7 @@ const NotFound = () => {
           <span className="nexus-gradient-text">Lost the signal</span>
         </h1>
         <p className="mt-4 text-slate-400">The page you're looking for drifted off the map.</p>
-        <Link to="/" className="nexus-button-primary mx-auto mt-8 w-fit">
+        <Link  href="/" className="nexus-button-primary mx-auto mt-8 w-fit">
           <Home size={18} />
           Back to Home
         </Link>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Heart, LoaderCircle, MapPin, Trash2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 import { offlineDb, type OfflineFavorite } from "../../services/offlineDb";
@@ -60,7 +61,7 @@ const Favorites = () => {
                   </p>
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <Link
-                      to={`/map?place=${encodeURIComponent(place.name)}`}
+                       href={`/map?place=${encodeURIComponent(place.name)}`}
                       className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-sm font-semibold text-slate-950"
                     >
                       <MapPin size={17} />
@@ -85,7 +86,7 @@ const Favorites = () => {
             <Heart className="mx-auto text-slate-600" size={42} />
             <p className="mt-4 text-2xl font-bold">No favorites yet</p>
             <p className="mt-2 text-slate-500">
-              Tap the heart on any destination in <Link to="/explore" className="text-cyan-400">Explore</Link> to save it here.
+              Tap the heart on any destination in <Link  href="/explore" className="text-cyan-400">Explore</Link> to save it here.
             </p>
           </div>
         )}

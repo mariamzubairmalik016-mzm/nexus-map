@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { LocateFixed, Search, Sparkles } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 
 const AISearch = () => {
-  const navigate = useNavigate();
+  const navigate = useRouter();
   const [query, setQuery] = useState("");
 
   const submit = () => {

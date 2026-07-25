@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Bell,
   Bot,
@@ -39,8 +40,8 @@ const accountLinks = [
 ];
 
 const Navbar = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location = usePathname();
+  const navigate = useRouter();
   const { user, profile, signOut } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -89,7 +90,7 @@ const Navbar = () => {
     <header className="fixed inset-x-0 top-0 z-[1000] border-b border-white/[0.08] bg-[#020617]/78 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link
-          to="/"
+           href="/"
           className="group flex min-w-0 items-center gap-3"
           onClick={closeMenus}
         >
@@ -112,7 +113,7 @@ const Navbar = () => {
           {navigationLinks.map((item) => (
             <Link
               key={item.path}
-              to={item.path}
+               href={item.path}
               className={`relative rounded-xl px-4 py-2.5 text-sm font-semibold ${
                 isActive(item.path)
                   ? "bg-white/[0.075] text-white shadow-inner"
@@ -128,7 +129,7 @@ const Navbar = () => {
 
           {user && (
             <Link
-              to="/ai-planner"
+               href="/ai-planner"
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ${
                 isActive("/ai-planner")
                   ? "bg-purple-400/10 text-purple-200"
@@ -145,14 +146,14 @@ const Navbar = () => {
           {!user ? (
             <>
               <Link
-                to="/login"
+                 href="/login"
                 className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-white/[0.05] hover:text-white"
               >
                 Login
               </Link>
 
               <Link
-                to="/signup"
+                 href="/signup"
                 className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/25 bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-sm font-black text-slate-950 shadow-[0_12px_30px_rgba(14,165,233,0.18)] hover:-translate-y-0.5"
               >
                 <Sparkles size={16} />
@@ -162,7 +163,7 @@ const Navbar = () => {
           ) : (
             <>
               <Link
-                to="/notifications"
+                 href="/notifications"
                 className="relative rounded-xl border border-white/[0.08] bg-white/[0.035] p-2.5 text-slate-300 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-white"
               >
                 <Bell size={19} />
@@ -213,7 +214,7 @@ const Navbar = () => {
                       {accountLinks.map(({ path, label, icon: Icon }) => (
                         <Link
                           key={path}
-                          to={path}
+                           href={path}
                           onClick={closeMenus}
                           className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${
                             isActive(path)
@@ -229,7 +230,7 @@ const Navbar = () => {
 
                     {profile?.role === "admin" && (
                       <Link
-                        to="/admin"
+                         href="/admin"
                         onClick={closeMenus}
                         className="mt-1 flex items-center gap-3 rounded-xl bg-purple-400/[0.07] px-4 py-3 text-sm font-semibold text-purple-200 hover:bg-purple-400/[0.12]"
                       >
@@ -270,7 +271,7 @@ const Navbar = () => {
             {navigationLinks.map((item) => (
               <Link
                 key={item.path}
-                to={item.path}
+                 href={item.path}
                 onClick={closeMenus}
                 className={`rounded-xl px-4 py-3 text-sm font-semibold ${
                   isActive(item.path)
@@ -290,7 +291,7 @@ const Navbar = () => {
                   (item) => (
                     <Link
                       key={item.path}
-                      to={item.path}
+                       href={item.path}
                       onClick={closeMenus}
                       className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 hover:bg-white/[0.04]"
                     >
@@ -301,7 +302,7 @@ const Navbar = () => {
 
                 {profile?.role === "admin" && (
                   <Link
-                    to="/admin"
+                     href="/admin"
                     onClick={closeMenus}
                     className="rounded-xl px-4 py-3 text-sm font-semibold text-purple-300 hover:bg-purple-400/[0.08]"
                   >
@@ -320,14 +321,14 @@ const Navbar = () => {
             ) : (
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <Link
-                  to="/login"
+                   href="/login"
                   onClick={closeMenus}
                   className="rounded-xl border border-white/[0.09] px-4 py-3 text-center text-sm font-semibold"
                 >
                   Login
                 </Link>
                 <Link
-                  to="/signup"
+                   href="/signup"
                   onClick={closeMenus}
                   className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 text-center text-sm font-black text-slate-950"
                 >

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LoaderCircle, MapPin, Star } from "lucide-react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { geoService } from "../../services/geoService";
 import { destinationImage } from "../../services/destinationImage";
@@ -92,7 +93,7 @@ const PopularDestinations = () => {
                   </p>
 
                   <Link
-                    to={`/map?place=${encodeURIComponent(place.name)}&lat=${place.latitude}&lng=${place.longitude}`}
+                     href={`/map?place=${encodeURIComponent(place.name)}&lat=${place.latitude}&lng=${place.longitude}`}
                     className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-semibold"
                   >
                     Explore Location

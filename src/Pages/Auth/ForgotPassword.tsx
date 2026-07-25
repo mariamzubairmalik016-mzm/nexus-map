@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Mail } from "lucide-react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import AuthShell from "../../components/auth/AuthShell";
@@ -26,7 +27,7 @@ const ForgotPassword = () => {
       title="Forgot password?"
       subtitle="Enter your email and we'll send you a reset link."
       footer={
-        <Link to="/login" className="font-semibold text-cyan-300 hover:text-cyan-200">
+        <Link  href="/login" className="font-semibold text-cyan-300 hover:text-cyan-200">
           Back to sign in
         </Link>
       }

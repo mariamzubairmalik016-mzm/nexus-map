@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { useLocation } from "react-router-dom";
+import { usePathname } from "next/navigation";
 
 /**
  * Smooth per-route enter animation. Keyed on the pathname so every navigation
@@ -9,7 +9,7 @@ import { useLocation } from "react-router-dom";
  * to keep Leaflet/3D pages stable.
  */
 const PageTransition = ({ children }: { children: ReactNode }) => {
-  const location = useLocation();
+  const location = usePathname();
   const reduce = useReducedMotion();
 
   return (

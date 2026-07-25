@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { LoaderCircle, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 
 const SignupForm = () => {
   const { signUp } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
