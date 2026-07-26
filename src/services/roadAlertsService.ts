@@ -1,6 +1,5 @@
 import { api } from "./api";
 import { offlineDb } from "./offlineDb";
-import { supabase } from "../lib/supabase";
 import { networkStatus } from "./networkStatus";
 import {
   EMPTY_SOURCES_META,
@@ -120,17 +119,20 @@ export const roadAlertsService = {
   confirm: (id: string) => api.post<RoadAlert>(`/road-alerts/${id}/confirm`, {}),
   resolve: (id: string) => api.post<RoadAlert>(`/road-alerts/${id}/resolve`, {}),
 
-  // Supabase Realtime when the road_alerts table exists; otherwise a no-op.
+  // Removed Supabase Realtime in favor of Vercel Postgres (no native websockets).
+  // Falling back to a simple polling mechanism for live updates.
   subscribeRealtime(onChange: () => void): () => void {
-    // Never open a Realtime WebSocket while offline (prevents reconnect floods).
-    if (!supabase || networkStatus.isOffline()) return () => {};
-    const client = supabase;
-    const channel = client
-      .channel("nexus-road-alerts")
-      .on("postgres_changes", { event: "*", schema: "public", table: "road_alerts" }, () => onChange())
-      .subscribe();
+    if (networkStatus.isOffline()) return () => {};
+    
+    // Poll every 30 seconds for new alerts
+    const intervalId = setInterval(() => {
+      if (!networkStatus.isOffline()) {
+        onChange();
+      }
+    }, 30000);
+
     return () => {
-      void client.removeChannel(channel);
+      clearInterval(intervalId);
     };
   },
 };

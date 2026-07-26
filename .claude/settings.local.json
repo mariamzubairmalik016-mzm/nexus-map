@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -m 12 -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5000/api/community/notes\")",
+      "Bash(curl -s -m 20 -o /dev/null -w \"%{http_code}\" -X POST -H \"Content-Type: application/json\" -d '{}' \"http://localhost:5000/api/trip-planner\")",
+      "Bash(curl -s -m 20 -o /dev/null -w \"%{http_code}\" -X POST -H \"Content-Type: application/json\" -d '{}' \"http://localhost:5000/api/ai\")",
+      "Bash(curl -s -m 15 -o /dev/null -w \"%{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{\"start\":\"not-an-object\"}' \"http://localhost:5000/api/navigation/routes\")",
+      "Bash(curl -s -m 15 -o /dev/null -w \"%{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{\"start\":{\"latitude\":null,\"longitude\":null},\"destination\":{\"latitude\":24.8,\"longitude\":67.0}}' \"http://localhost:5000/api/navigation/routes\")"
+    ]
+  }
+}

@@ -8,7 +8,7 @@ import {
   varchar,
   doublePrecision,
 } from "drizzle-orm/pg-core";
-import type { AdapterAccountType } from "next-auth/adapters";
+import type { AdapterAccount } from "next-auth/adapters";
 
 // --- NextAuth Core Tables ---
 
@@ -18,6 +18,7 @@ export const users = pgTable("user", {
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name"),
   email: text("email").unique(),
+  password: text("password"),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
 });
@@ -28,7 +29,7 @@ export const accounts = pgTable(
     userId: text("userId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    type: text("type").$type<AdapterAccountType>().notNull(),
+    type: text("type").$type<AdapterAccount["type"]>().notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("providerAccountId").notNull(),
     refresh_token: text("refresh_token"),
@@ -147,6 +148,136 @@ export const communityNotes = pgTable("community_notes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Tourism Ecosystem Tables ─────────────────────────────
+
+export const tourismPOIs = pgTable("tourism_pois", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  description: text("description").notNull(),
+  shortDescription: text("short_description"),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  address: text("address"),
+  city: varchar("city", { length: 100 }).notNull(),
+  country: varchar("country", { length: 100 }).notNull(),
+  countryIso2: varchar("country_iso2", { length: 2 }),
+  imageUrl: text("image_url"),
+  rating: doublePrecision("rating").default(0),
+  reviewCount: integer("review_count").default(0),
+  priceLevel: integer("price_level"),
+  phone: varchar("phone", { length: 50 }),
+  website: text("website"),
+  openingHours: text("opening_hours"),
+  isVerified: integer("is_verified").default(0),
+  isFeatured: integer("is_featured").default(0),
+  tags: text("tags"), // JSON array
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const tourismReviews = pgTable("tourism_reviews", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  userName: text("user_name").notNull(),
+  placeId: text("place_id").references(() => tourismPOIs.id, { onDelete: "cascade" }).notNull(),
+  placeName: text("place_name").notNull(),
+  rating: integer("rating").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  images: text("images"), // JSON array
+  likes: integer("likes").default(0),
+  helpfulCount: integer("helpful_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityTips = pgTable("community_tips", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  userName: text("user_name").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  imageUrl: text("image_url"),
+  likes: integer("likes").default(0),
+  bookmarks: integer("bookmarks").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const travelGroups = pgTable("travel_groups", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  coverImage: text("cover_image"),
+  memberCount: integer("member_count").default(1),
+  isPublic: integer("is_public").default(1),
+  tags: text("tags"), // JSON array
+  createdBy: text("created_by").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const groupMembers = pgTable("group_members", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  groupId: text("group_id").references(() => travelGroups.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  role: varchar("role", { length: 20 }).default("member"),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export const sosAlerts = pgTable("sos_alerts", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  message: text("message"),
+  status: varchar("status", { length: 20 }).default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+export const emergencyContacts = pgTable("emergency_contacts", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  phone: varchar("phone", { length: 50 }).notNull(),
+  relationship: text("relationship"),
+  isPrimary: integer("is_primary").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const travelMemories = pgTable("travel_memories", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  tripName: text("trip_name").notNull(),
+  destination: text("destination").notNull(),
+  photos: text("photos"), // JSON array
+  notes: text("notes"),
+  rating: integer("rating"),
+  distanceTravelledKm: doublePrecision("distance_travelled_km"),
+  countriesVisited: text("countries_visited"), // JSON array
+  citiesVisited: text("cities_visited"), // JSON array
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const digitalPassports = pgTable("digital_passports", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }).notNull(),
+  userName: text("user_name").notNull(),
+  level: integer("level").default(1),
+  xp: integer("xp").default(0),
+  coins: integer("coins").default(0),
+  countryStamps: text("country_stamps"), // JSON array
+  cityStamps: text("city_stamps"), // JSON array
+  badges: text("badges"), // JSON array
+  totalCountries: integer("total_countries").default(0),
+  totalCities: integer("total_cities").default(0),
+  totalDistanceKm: doublePrecision("total_distance_km").default(0),
+  totalTrips: integer("total_trips").default(0),
+  totalXp: integer("total_xp").default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const savedRoutes = pgTable("saved_routes", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
@@ -164,6 +295,36 @@ export const savedRoutes = pgTable("saved_routes", {
   avoidTolls: integer("avoid_tolls").default(0), // sqlite-like boolean mapping
   avoidFerries: integer("avoid_ferries").default(0),
   offlineAvailable: integer("offline_available").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const geoCities = pgTable("geo_cities", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  countryIso2: varchar("country_iso2", { length: 2 }).notNull(),
+  regionCode: varchar("region_code", { length: 50 }),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  cityType: varchar("city_type", { length: 50 }).notNull(),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  population: integer("population"),
+  imageUrl: text("image_url"),
+  description: text("description"),
+  searchKeywords: text("search_keywords"),
+  isFeatured: integer("is_featured").default(0), // boolean equivalent
+  isActive: integer("is_active").default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const geoLocationCategories = pgTable("geo_location_categories", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  iconName: varchar("icon_name", { length: 100 }),
+  description: text("description"),
+  isActive: integer("is_active").default(1),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

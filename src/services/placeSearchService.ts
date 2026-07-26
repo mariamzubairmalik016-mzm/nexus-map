@@ -3,6 +3,7 @@ import { networkStatus } from "./networkStatus";
 import { offlineDb } from "./offlineDb";
 import type { OfflinePlace } from "../types/offline";
 import type { RecentSearch, SavedPlace, SearchSuggestion } from "../types/navigation";
+import { searchGeoCatalog } from "./geoCatalog.service";
 
 /**
  * Place search for the UI.
@@ -164,7 +165,32 @@ export const searchPlaces = async (
   const payload = (await response.json()) as { success: boolean; data: SearchSuggestion[]; message?: string };
   if (!payload.success) throw new Error(payload.message || "Search failed.");
 
-  const results = payload.data ?? [];
+  // Also search our curated catalog so we always find known cities
+  const catalogResults = await searchGeoCatalog(query, 5).catch(() => []);
+  const catalogSuggestions: SearchSuggestion[] = catalogResults.map(cat => ({
+    id: cat.id,
+    provider: "catalog",
+    name: cat.name,
+    displayName: cat.name,
+    address: cat.address,
+    category: cat.category,
+    lat: cat.position.latitude,
+    lng: cat.position.longitude,
+    position: cat.position
+  }));
+
+  // Merge, putting catalog matches first
+  const mergedResults = [...catalogSuggestions, ...(payload.data ?? [])];
+  
+  // Deduplicate by name/location
+  const seen = new Set<string>();
+  const results = mergedResults.filter(item => {
+    const key = `${item.name.toLowerCase()}|${item.position.latitude.toFixed(2)}|${item.position.longitude.toFixed(2)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   void cacheResults(query, results);
   return { results, offline: false };
 };

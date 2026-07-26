@@ -1,0 +1,9 @@
+import { useState } from "react";
+import { Bell, Languages, LocateFixed, Moon, Save, Shield } from "lucide-react";
+import toast from "react-hot-toast";
+const Settings = () => {
+  const [location, setLocation] = useState(true);
+  const [notifications, setNotifications] = useState(true);
+  return <section className="min-h-[calc(100vh-80px)] px-4 py-14 sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><p className="text-sm uppercase tracking-[.25em] text-cyan-400">Personal preferences</p><h1 className="mt-3 text-4xl font-bold">Settings</h1><div className="mt-8 grid gap-6 lg:grid-cols-2">{[[Moon, "Appearance", "Dark theme is enabled."], [Languages, "Language", "English interface."], [LocateFixed, "Location", "Control GPS permissions."], [Bell, "Notifications", "Route and weather alerts."], [Shield, "Privacy", "Manage account visibility."]].map(([Icon, title, text]) => <article key={String(title)} className="rounded-[28px] border border-white/10 bg-white/[.04] p-6"><div className="flex items-center gap-3"><div className="rounded-2xl bg-cyan-400/10 p-3 text-cyan-400"><Icon /></div><div><h2 className="text-xl font-bold">{String(title)}</h2><p className="mt-1 text-sm text-slate-400">{String(text)}</p></div></div>{String(title) === "Location" && <input type="checkbox" checked={location} onChange={(e) => setLocation(e.target.checked)} className="mt-5 h-5 w-5 accent-cyan-500" />}{String(title) === "Notifications" && <input type="checkbox" checked={notifications} onChange={(e) => setNotifications(e.target.checked)} className="mt-5 h-5 w-5 accent-cyan-500" />}</article>)}</div><button onClick={() => toast.success("Settings saved.")} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 py-4 font-semibold"><Save size={18} />Save Settings</button></div></section>;
+};
+export default Settings;

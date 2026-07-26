@@ -148,35 +148,60 @@ export const calculateTomTomRoutes = async (input: {
     }>;
   };
 
-  const data = await fetchTomTom<RouteResponse>(url);
+  try {
+    const data = await fetchTomTom<RouteResponse>(url);
 
-  return data.routes.map((route, routeIndex) => ({
-    id: `route-${routeIndex}-${route.summary.lengthInMeters}`,
-    summary: {
-      lengthMeters: route.summary.lengthInMeters,
-      travelTimeSeconds: route.summary.travelTimeInSeconds,
-      trafficDelaySeconds: route.summary.trafficDelayInSeconds,
-      departureTime: route.summary.departureTime,
-      arrivalTime: route.summary.arrivalTime,
-    },
-    coordinates: route.legs.flatMap((leg) =>
-      leg.points.map(
-        (point) =>
-          [point.latitude, point.longitude] as [number, number],
+    return data.routes.map((route, routeIndex) => ({
+      id: `route-${routeIndex}-${route.summary.lengthInMeters}`,
+      summary: {
+        lengthMeters: route.summary.lengthInMeters,
+        travelTimeSeconds: route.summary.travelTimeInSeconds,
+        trafficDelaySeconds: route.summary.trafficDelayInSeconds,
+        departureTime: route.summary.departureTime,
+        arrivalTime: route.summary.arrivalTime,
+      },
+      coordinates: route.legs.flatMap((leg) =>
+        leg.points.map(
+          (point) =>
+            [point.latitude, point.longitude] as [number, number],
+        ),
       ),
-    ),
-    instructions:
-      route.guidance?.instructions.map((instruction, index) => ({
-        id: `instruction-${routeIndex}-${index}`,
-        message: instruction.message,
-        routeOffsetMeters: instruction.routeOffsetInMeters,
-        travelTimeSeconds: instruction.travelTimeInSeconds,
-        point: {
-          latitude: instruction.point.latitude,
-          longitude: instruction.point.longitude,
-        },
-      })) ?? [],
-  }));
+      instructions:
+        route.guidance?.instructions.map((instruction, index) => ({
+          id: `instruction-${routeIndex}-${index}`,
+          message: instruction.message,
+          routeOffsetMeters: instruction.routeOffsetInMeters,
+          travelTimeSeconds: instruction.travelTimeInSeconds,
+          point: {
+            latitude: instruction.point.latitude,
+            longitude: instruction.point.longitude,
+          },
+        })) ?? [],
+    }));
+  } catch (error) {
+    if ((process.env.NODE_ENV === 'development')) {
+      console.warn("TomTom routing failed, falling back to OSRM...", error);
+    }
+    
+    // OSRM expects lon,lat;lon,lat
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${input.start.longitude},${input.start.latitude};${input.destination.longitude},${input.destination.latitude}?overview=full&geometries=geojson`;
+    const osrmRes = await fetch(osrmUrl);
+    if (!osrmRes.ok) throw error; // throw original TomTom error if fallback fails
+    
+    const osrmData = await osrmRes.json();
+    if (osrmData.code !== 'Ok' || !osrmData.routes?.length) throw error;
+
+    return osrmData.routes.map((route: any, routeIndex: number) => ({
+      id: `route-osrm-${routeIndex}-${route.distance}`,
+      summary: {
+        lengthMeters: route.distance,
+        travelTimeSeconds: route.duration,
+        trafficDelaySeconds: 0,
+      },
+      coordinates: route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]), // OSRM is [lon, lat], we need [lat, lon]
+      instructions: []
+    }));
+  }
 };
 
 export const getTomTomIncidents = async (
@@ -244,6 +269,51 @@ export const getTomTomIncidents = async (
           : undefined,
     };
   });
+};
+
+export const searchCategoryTomTom = async (
+  categorySet: string,
+  lat: number,
+  lon: number,
+  radius = 50000,
+  limit = 20,
+) => {
+  const params = new URLSearchParams({
+    key: env.TOMTOM_API_KEY,
+    categorySet,
+    lat: String(lat),
+    lon: String(lon),
+    radius: String(radius),
+    limit: String(limit),
+    language: "en-GB",
+  });
+
+  const url = `${TOMTOM_BASE}/search/2/categorySearch/.json?${params.toString()}`;
+
+  type CategorySearchResponse = {
+    results: Array<{
+      id: string;
+      poi: { name: string; categories?: string[]; phone?: string; url?: string };
+      position: { lat: number; lon: number };
+      address: { freeformAddress: string; municipality?: string; country?: string };
+      dist: number;
+    }>;
+  };
+
+  const data = await fetchTomTom<CategorySearchResponse>(url);
+
+  return data.results.map((result) => ({
+    id: result.id,
+    name: result.poi?.name || "Unknown place",
+    address: result.address?.freeformAddress || [result.address?.municipality, result.address?.country].filter(Boolean).join(", "),
+    city: result.address?.municipality,
+    country: result.address?.country,
+    position: { latitude: result.position.lat, longitude: result.position.lon },
+    distance: result.dist,
+    category: result.poi?.categories?.[0],
+    phone: result.poi?.phone,
+    website: result.poi?.url,
+  }));
 };
 
 export const fetchTomTomTile = async (

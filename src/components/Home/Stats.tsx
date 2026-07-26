@@ -11,18 +11,18 @@ const items = [
 ];
 
 const Stats = () => (
-  <section className="bg-[#020617] px-4 py-12 sm:px-6 lg:px-8">
-    <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  <section className="relative bg-[#020617] px-4 py-16 sm:px-6 lg:px-8">
+    <div className="relative mx-auto grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-4">
       {items.map(({ target, suffix, label, icon: Icon }, index) => (
         <Reveal key={label} delay={index * 0.08}>
-          <article className="nexus-card h-full p-6">
-            <div className="inline-flex rounded-2xl bg-cyan-400/10 p-3 text-cyan-400">
+          <article className="nexus-card-elevated p-7">
+            <div className="inline-flex rounded-2xl bg-gradient-to-br from-cyan-400/15 to-blue-600/10 p-3 text-cyan-400 shadow-[inset_0_1px_0_rgba(34,211,238,0.1)]">
               <Icon size={22} />
             </div>
-            <p className="mt-5 text-4xl font-bold">
+            <p className="mt-5 text-4xl font-bold text-white">
               <AnimatedCounter target={target} suffix={suffix} />
             </p>
-            <p className="mt-2 text-slate-400">{label}</p>
+            <p className="mt-2 text-sm text-slate-400">{label}</p>
           </article>
         </Reveal>
       ))}

@@ -61,21 +61,7 @@ const toRow = (place: SavedPlace, userId: string) => ({
   last_visited_at: place.lastVisitedAt ?? null,
 });
 
-const requireClient = () => {
-  if (!supabase) throw new Error("Supabase is not configured.");
-  return supabase;
-};
-
-const currentUserId = async (): Promise<string | null> => {
-  if (!supabase) return null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    return data.user?.id ?? null;
-  } catch {
-    return null;
-  }
-};
-
+// Removed unused Supabase auth checks
 const localList = async () => {
   const places = await offlineDb.getSavedPlaces().catch(() => [] as SavedPlace[]);
   return places.filter((place) => !place.deleted).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

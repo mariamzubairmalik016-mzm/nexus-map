@@ -1,3 +1,3 @@
 "use client";
-import Explore from "../../Pages/Explore/Explore";
+import Explore from "../../views/Explore/Explore";
 export default function ExplorePage() { return <Explore />; }

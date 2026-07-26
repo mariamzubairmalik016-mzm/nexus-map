@@ -1,4 +1,3 @@
-import { supabase } from "../lib/supabase";
 import { queueRequest } from "./offlineQueue";
 import { networkStatus, OfflineError } from "./networkStatus";
 

@@ -1,3 +1,3 @@
 "use client";
-import AIPlanner from "../../Pages/AIPlanner/AIPlanner";
+import AIPlanner from "../../views/AIPlanner/AIPlanner";
 export default function AIPlannerPage() { return <AIPlanner />; }

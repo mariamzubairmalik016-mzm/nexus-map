@@ -1,10 +1,10 @@
+"use client";
 import { useEffect, useRef } from "react";
 
 /**
- * Reusable global animated background: aurora light clouds, a masked map grid,
- * faint lat/long curves, flowing route paths, glowing location pulses, a
- * cursor-follow spotlight (desktop only) and a cinematic vignette. Purely
- * decorative (pointer-events: none) and reduced-motion friendly.
+ * Premium global animated background: multi-layered aurora, map grid,
+ * decorative SVG route paths, glowing location pulses, cursor spotlight,
+ * vignette, and subtle grain texture. Purely decorative (pointer-events: none).
  */
 const CinematicBackground = () => {
   const ref = useRef<HTMLDivElement>(null);
@@ -33,9 +33,16 @@ const CinematicBackground = () => {
 
   return (
     <div ref={ref} className="nexus-bg" aria-hidden>
+      {/* Grain texture overlay */}
+      <div className="nexus-grain" />
+
+      {/* Aurora layers */}
       <div className="nexus-bg-aurora" />
+
+      {/* Grid overlay */}
       <div className="nexus-bg-grid" />
 
+      {/* Decorative SVG paths */}
       <svg className="nexus-bg-lines" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
         <defs>
           <linearGradient id="nexusRouteGrad" x1="0" y1="0" x2="1" y2="0">
@@ -43,32 +50,64 @@ const CinematicBackground = () => {
             <stop offset="0.5" stopColor="#22d3ee" />
             <stop offset="1" stopColor="#3b82f6" stopOpacity="0" />
           </linearGradient>
+          <linearGradient id="nexusRouteGrad2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#a855f7" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#a855f7" />
+            <stop offset="1" stopColor="#34d399" stopOpacity="0" />
+          </linearGradient>
+          <radialGradient id="nexusGlowGrad">
+            <stop offset="0" stopColor="#22d3ee" stopOpacity="0.5" />
+            <stop offset="1" stopColor="#22d3ee" stopOpacity="0" />
+          </radialGradient>
         </defs>
 
-        {/* faint geographic contours / lat-long */}
-        <g stroke="rgba(148,163,184,0.05)" strokeWidth="1" fill="none">
+        {/* Faint geographic contours */}
+        <g stroke="rgba(148,163,184,0.04)" strokeWidth="1" fill="none">
           <path d="M0 300 Q 720 250 1440 300" />
           <path d="M0 520 Q 720 590 1440 520" />
           <ellipse cx="720" cy="450" rx="640" ry="250" />
           <ellipse cx="720" cy="450" rx="360" ry="150" />
+          <ellipse cx="720" cy="450" rx="180" ry="80" />
         </g>
 
-        {/* flowing route paths */}
+        {/* Flowing route paths */}
         <path className="nexus-route" d="M-50 700 C 300 500, 600 760, 900 500 S 1300 400, 1500 560" />
-        <path className="nexus-route" style={{ animationDelay: "-3s" }} d="M-50 250 C 350 400, 700 200, 1050 380 S 1350 300, 1500 250" />
+        <path className="nexus-route" style={{ animationDelay: "-3s", animationDuration: "12s" }} d="M-50 250 C 350 400, 700 200, 1050 380 S 1350 300, 1500 250" />
+        <path className="nexus-route" style={{ animationDelay: "-6s", strokeDasharray: "8 500", strokeWidth: 1 }} d="M200 900 C 400 600, 800 800, 1100 400 S 1300 200, 1500 350" />
 
-        {/* glowing location points */}
+        {/* Second route with purple gradient */}
+        <path
+          className="nexus-route"
+          style={{ animationDelay: "-2s", stroke: "url(#nexusRouteGrad2)", strokeDasharray: "6 400" }}
+          d="M100 100 C 400 300, 600 100, 900 400 S 1200 600, 1400 300"
+        />
+
+        {/* Glowing location points */}
         <g fill="#34d399">
-          <circle className="nexus-dot" cx="300" cy="560" r="3" />
-          <circle className="nexus-dot" cx="900" cy="500" r="3" style={{ animationDelay: "-1.6s" }} />
+          <circle className="nexus-dot" cx="300" cy="560" r="3.5" />
+          <circle className="nexus-dot" cx="900" cy="500" r="3.5" style={{ animationDelay: "-1.6s" }} />
+          <circle className="nexus-dot" cx="720" cy="380" r="2.5" style={{ animationDelay: "-3.2s" }} />
         </g>
         <g fill="#22d3ee">
-          <circle className="nexus-dot" cx="1050" cy="380" r="3" style={{ animationDelay: "-2.4s" }} />
-          <circle className="nexus-dot" cx="620" cy="300" r="2.6" style={{ animationDelay: "-0.8s" }} />
+          <circle className="nexus-dot" cx="1050" cy="380" r="3.5" style={{ animationDelay: "-2.4s" }} />
+          <circle className="nexus-dot" cx="620" cy="300" r="3" style={{ animationDelay: "-0.8s" }} />
         </g>
+        <g fill="#a855f7">
+          <circle className="nexus-dot" cx="480" cy="420" r="2.5" style={{ animationDelay: "-4s" }} />
+          <circle className="nexus-dot" cx="1180" cy="520" r="2.5" style={{ animationDelay: "-1.2s" }} />
+        </g>
+
+        {/* Decorative concentric rings */}
+        <circle cx="300" cy="460" r="40" fill="none" stroke="rgba(52, 211, 153, 0.04)" strokeWidth="1" />
+        <circle cx="300" cy="460" r="60" fill="none" stroke="rgba(52, 211, 153, 0.03)" strokeWidth="0.5" />
+        <circle cx="1050" cy="280" r="35" fill="none" stroke="rgba(34, 211, 238, 0.04)" strokeWidth="1" />
+        <circle cx="1050" cy="280" r="55" fill="none" stroke="rgba(34, 211, 238, 0.025)" strokeWidth="0.5" />
       </svg>
 
+      {/* Spotlight (cursor follow) */}
       <div className="nexus-bg-spotlight" />
+
+      {/* Cinematic vignette */}
       <div className="nexus-bg-vignette" />
     </div>
   );

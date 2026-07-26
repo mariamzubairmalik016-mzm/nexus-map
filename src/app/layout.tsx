@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   description: "Next-generation maps and routing",
 };
 
+import Navbar from "../components/layouts/Navbar";
+import Footer from "../components/layouts/Footer";
+import AIChatbot from "../components/ai/AIChatbot";
+import CinematicBackground from "../components/ui/CinematicBackground";
+
 export default function RootLayout({
   children,
 }: {
@@ -29,7 +34,17 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} ${spaceGrotesk.variable} ${marcellus.variable} font-sans antialiased text-gray-900 bg-white dark:text-gray-100 dark:bg-black`}>
         <Providers>
-          {children}
+          <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
+            <CinematicBackground />
+            <Navbar />
+            <main className="relative z-10 min-h-[calc(100vh-80px)] pt-20">
+              {children}
+            </main>
+            <div className="relative z-10">
+              <Footer />
+            </div>
+            <AIChatbot />
+          </div>
         </Providers>
       </body>
     </html>

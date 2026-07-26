@@ -4,7 +4,7 @@ export type Coordinates = {
   accuracy?: number;
 };
 
-export type PlaceProvider = "tomtom" | "geoapify" | "supabase" | "offline" | "gps" | "saved";
+export type PlaceProvider = "tomtom" | "geoapify" | "catalog" | "offline" | "gps" | "saved";
 
 /**
  * One normalized search result. The backend emits this shape for every
@@ -46,7 +46,7 @@ export type SavedPlace = {
   lastVisitedAt?: string;
   createdAt: string;
   updatedAt: string;
-  /** Set locally while an offline change is waiting to reach Supabase. */
+  /** Set locally while an offline change is waiting to reach the database. */
   pendingSync?: boolean;
   deleted?: boolean;
 };
