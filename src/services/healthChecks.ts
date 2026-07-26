@@ -5,14 +5,14 @@ import { networkStatus } from "./networkStatus";
 export type HealthStatus = "healthy" | "degraded" | "offline" | "not-configured";
 export type ServiceHealth = { key: string; label: string; status: HealthStatus; detail: string };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 /** Runs real, non-blocking checks against each service the app depends on. */
 export const runHealthChecks = async (): Promise<ServiceHealth[]> => {
   const online = networkStatus.isOnline();
 
   let backendOk = false;
-  let backendDetail = online ? "Not running on :5000" : "You are offline";
+  let backendDetail = online ? "Not configured" : "You are offline";
   let dbFromBackend = "";
   // Never probe the network while offline (avoids console error noise).
   if (online) try {
