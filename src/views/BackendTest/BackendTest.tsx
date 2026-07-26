@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 // Use Next.js-compatible env variable, fall back to Express backend URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 type HealthData = {
   service: string;

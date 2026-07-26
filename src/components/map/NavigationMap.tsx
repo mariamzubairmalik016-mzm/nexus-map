@@ -182,7 +182,7 @@ const NavigationMap = ({
       {showTraffic && (
         <TileLayer
           attribution="Traffic © TomTom"
-          url={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/navigation/traffic-tile/{z}/{x}/{y}`}
+          url={`${process.env.NEXT_PUBLIC_API_URL || "/api"}/navigation/traffic-tile/{z}/{x}/{y}`}
           opacity={0.75}
           zIndex={500}
         />

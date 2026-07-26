@@ -30,7 +30,7 @@ const resolveApiUrl = () => {
 export type MapProviderId = "osm" | "tomtom";
 
 export const appEnv = {
-  /** Fully-qualified API root, e.g. http://localhost:5000/api */
+  /** Fully-qualified API root, e.g. /api */
   apiUrl: resolveApiUrl(),
 
   /**
