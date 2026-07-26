@@ -33,9 +33,6 @@ export const appEnv = {
   /** Fully-qualified API root, e.g. http://localhost:5000/api */
   apiUrl: resolveApiUrl(),
 
-  supabaseUrl: readString(process.env.NEXT_PUBLIC_SUPABASE_URL, ""),
-  supabaseAnonKey: readString(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, ""),
-
   /**
    * Base map provider. "osm" uses OpenStreetMap raster tiles directly;
    * "tomtom" uses the backend tile proxy (keeps the TomTom key server-side).
@@ -49,5 +46,3 @@ export const appEnv = {
     zoom: Number(process.env.NEXT_PUBLIC_MAP_DEFAULT_ZOOM ?? 5),
   },
 } as const;
-
-export const supabaseConfigured = Boolean(appEnv.supabaseUrl && appEnv.supabaseAnonKey);

@@ -88,6 +88,14 @@ const SearchAutocomplete = ({
 
     abortRef.current?.abort();
 
+    if (selected) {
+      setSuggestions([]);
+      setLoading(false);
+      setError("");
+      setSearched(false);
+      return;
+    }
+
     if (query.length < MIN_CHARS || !isSearchableQuery(query)) {
       setSuggestions([]);
       setLoading(false);

@@ -9,12 +9,12 @@ import { usePathname } from "next/navigation";
  * to keep Leaflet/3D pages stable.
  */
 const PageTransition = ({ children }: { children: ReactNode }) => {
-  const location = usePathname();
+  const pathname = usePathname();
   const reduce = useReducedMotion();
 
   return (
     <motion.div
-      key={location.pathname}
+      key={pathname}
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}

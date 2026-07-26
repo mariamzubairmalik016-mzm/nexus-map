@@ -1,3 +1,3 @@
 "use client";
-import History from "../../Pages/History/History";
+import History from "../../views/History/History";
 export default function HistoryPage() { return <History />; }

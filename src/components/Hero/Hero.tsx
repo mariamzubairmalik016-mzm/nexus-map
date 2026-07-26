@@ -1,11 +1,10 @@
-import { lazy, Suspense } from "react";
-
+import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import HeroBackground from "./HeroBackground";
 import HeroContent from "./HeroContent";
 
-// Three.js globe is heavy — load it as a separate chunk so it never blocks the
-// hero text / first paint.
-const HeroGlobe = lazy(() => import("./HeroGlobe"));
+// Three.js globe is heavy and requires browser APIs — load it completely on the client side!
+const HeroGlobe = dynamic(() => import("./HeroGlobeNew"), { ssr: false });
 
 const Hero = () => (
   <section className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-[#020617]">

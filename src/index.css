@@ -7,12 +7,25 @@
   color: #f8fafc;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  /* === Premium color palette === */
   --nexus-cyan: #22d3ee;
   --nexus-blue: #3b82f6;
   --nexus-purple: #a855f7;
+  --nexus-emerald: #34d399;
+  --nexus-gold: #fbbf24;
   --nexus-bg: #020617;
+  --nexus-bg-deeper: #010412;
   --nexus-panel: rgba(15, 23, 42, 0.66);
   --nexus-border: rgba(255, 255, 255, 0.09);
+  --nexus-border-light: rgba(255, 255, 255, 0.05);
+  --nexus-border-strong: rgba(255, 255, 255, 0.14);
+  --nexus-glow-cyan: rgba(34, 211, 238, 0.12);
+  --nexus-glow-purple: rgba(168, 85, 247, 0.12);
+  --nexus-glow-blue: rgba(59, 130, 246, 0.12);
+  --nexus-glow-emerald: rgba(52, 211, 153, 0.12);
+
+  /* === Typography === */
   --font-display: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-hero: "Marcellus", "Cormorant Garamond", Georgia, serif;
@@ -39,11 +52,12 @@ body {
     #020617;
 }
 
+/* Noise texture overlay — gives that premium film-grain feel */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -2;
+  z-index: -3;
   pointer-events: none;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
@@ -62,6 +76,19 @@ body::after {
     linear-gradient(to bottom, rgba(2, 6, 23, 0.06), rgba(2, 6, 23, 0.88));
 }
 
+/* Subtle cinematic grain */
+.nexus-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  mix-blend-mode: overlay;
+}
+
 button,
 a,
 input,
@@ -73,17 +100,17 @@ textarea {
 button,
 a {
   transition:
-    transform 180ms ease,
-    border-color 180ms ease,
-    background-color 180ms ease,
-    color 180ms ease,
-    box-shadow 180ms ease,
-    opacity 180ms ease;
+    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 250ms ease,
+    background-color 250ms ease,
+    color 250ms ease,
+    box-shadow 250ms ease,
+    opacity 250ms ease;
 }
 
 button:not(:disabled):active,
 a:active {
-  transform: translateY(1px) scale(0.995);
+  transform: translateY(1px) scale(0.99);
 }
 
 button:focus-visible,
@@ -91,7 +118,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid rgba(34, 211, 238, 0.75);
+  outline: 2px solid rgba(34, 211, 238, 0.65);
   outline-offset: 3px;
 }
 
@@ -117,22 +144,22 @@ select option {
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #020617;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  border: 3px solid #020617;
   border-radius: 999px;
-  background: linear-gradient(#164e63, #4c1d95);
+  background: linear-gradient(180deg, #1e3a5f, #3b1f6e);
+  border: 2px solid #020617;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(#0891b2, #7e22ce);
+  background: linear-gradient(180deg, #0891b2, #7e22ce);
 }
 
 .leaflet-container {
@@ -164,7 +191,6 @@ select option {
   color: #333333 !important;
 }
 
-/* Override the dark popup from the template */
 .leaflet-popup-content-wrapper {
   background: #ffffff !important;
   color: #222222 !important;
@@ -191,6 +217,7 @@ select option {
   background: transparent !important;
 }
 
+/* Page wrapper */
 .nexus-page {
   position: relative;
   isolation: isolate;
@@ -213,6 +240,11 @@ select option {
   margin-inline: auto;
 }
 
+/* ============================================================
+   GLASS & CARD SYSTEM — Premium Variants
+   ============================================================ */
+
+/* Base glass — refined with inner depth */
 .nexus-glass {
   border: 1px solid var(--nexus-border);
   background:
@@ -224,6 +256,7 @@ select option {
   backdrop-filter: blur(24px);
 }
 
+/* Standard card */
 .nexus-card {
   border: 1px solid var(--nexus-border);
   border-radius: 1.65rem;
@@ -243,6 +276,107 @@ select option {
     0 0 0 1px rgba(34, 211, 238, 0.035);
 }
 
+/* Premium deep card — more opacity, richer glass */
+.nexus-card-premium {
+  border: 1px solid var(--nexus-border-strong);
+  border-radius: 1.75rem;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(8, 15, 30, 0.72);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(34, 211, 238, 0.03);
+  backdrop-filter: blur(28px);
+}
+
+/* Interactive elevated card with light sweep (sweep effect in @media (hover: hover)) */
+.nexus-card-elevated {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--nexus-border);
+  border-radius: 1.65rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(15, 23, 42, 0.58);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(22px);
+  transition:
+    transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 350ms ease,
+    border-color 350ms ease;
+}
+
+.nexus-card-elevated:hover {
+  transform: translateY(-4px);
+  border-color: rgba(34, 211, 238, 0.18);
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(34, 211, 238, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Cinematic card — for hero / featured sections */
+.nexus-card-cinematic {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2rem;
+  background:
+    linear-gradient(135deg,
+      rgba(34, 211, 238, 0.05),
+      rgba(6, 182, 212, 0.02),
+      rgba(168, 85, 247, 0.03),
+      transparent 60%
+    ),
+    rgba(2, 6, 23, 0.6);
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(34, 211, 238, 0.05);
+  backdrop-filter: blur(30px);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Floating card (gentle hover animation) */
+.nexus-card-float {
+  border: 1px solid var(--nexus-border);
+  border-radius: 1.4rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
+    rgba(2, 6, 23, 0.55);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  animation: nexus-float 6s ease-in-out infinite;
+}
+
+/* Glow card — subtle inner glow */
+.nexus-card-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.nexus-card-glow::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(34, 211, 238, 0.03),
+    transparent 50%
+  );
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* ============================================================
+   GRADIENT TEXT
+   ============================================================ */
+
 .nexus-gradient-text {
   background: linear-gradient(90deg, #67e8f9 0%, #60a5fa 48%, #c084fc 100%);
   -webkit-background-clip: text;
@@ -250,15 +384,39 @@ select option {
   color: transparent;
 }
 
+.nexus-gradient-text-gold {
+  background: linear-gradient(135deg, #fde047, #f59e0b 50%, #eab308);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nexus-gradient-text-emerald {
+  background: linear-gradient(135deg, #6ee7b7, #34d399 50%, #10b981);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nexus-gradient-text-rich {
+  background: linear-gradient(135deg, #67e8f9 0%, #818cf8 33%, #c084fc 66%, #f472b6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .nexus-eyebrow {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.26em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: #22d3ee;
 }
 
-/* Premium typography system */
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+
 h1,
 h2,
 h3,
@@ -284,36 +442,32 @@ h3,
 }
 
 @keyframes nexus-gradient-shift {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
-/* Cinematic drifting aurora (applied to layout background blobs) */
+/* Cinematic display heading (serif) */
+.text-hero-display {
+  font-family: var(--font-hero);
+  font-weight: 400;
+  letter-spacing: 0.012em;
+  line-height: 1.05;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
 @keyframes nexus-aurora-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(28px, -22px, 0) scale(1.08);
-  }
-}
-.nexus-aurora-1 {
-  animation: nexus-aurora-drift 18s ease-in-out infinite;
-}
-.nexus-aurora-2 {
-  animation: nexus-aurora-drift 24s ease-in-out infinite reverse;
-}
-.nexus-aurora-3 {
-  animation: nexus-aurora-drift 30s ease-in-out infinite;
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(28px, -22px, 0) scale(1.08); }
 }
 
-/* Road-alert map markers */
+.nexus-aurora-1 { animation: nexus-aurora-drift 18s ease-in-out infinite; }
+.nexus-aurora-2 { animation: nexus-aurora-drift 24s ease-in-out infinite reverse; }
+.nexus-aurora-3 { animation: nexus-aurora-drift 30s ease-in-out infinite; }
+
+/* Pin pulse for map markers */
 .nexus-pin {
   display: block;
   width: 22px;
@@ -322,22 +476,19 @@ h3,
   border: 3px solid #020617;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
 }
+
 .nexus-pin-ring {
   position: absolute;
   inset: -6px;
   border-radius: 9999px;
   animation: nexus-pin-pulse 1.6s ease-out infinite;
 }
+
 @keyframes nexus-pin-pulse {
-  0% {
-    transform: scale(0.55);
-    opacity: 0.7;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
+  0% { transform: scale(0.55); opacity: 0.7; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
+
 .nexus-cluster {
   min-width: 34px;
   height: 34px;
@@ -353,66 +504,9 @@ h3,
 }
 
 /* ============================================================
-   Cinematic display heading (antique font)
+   CINEMATIC BACKGROUND SYSTEM
    ============================================================ */
-.text-hero-display {
-  font-family: var(--font-hero);
-  font-weight: 400;
-  letter-spacing: 0.012em;
-  line-height: 1.05;
-}
 
-/* ============================================================
-   Premium glass variants (build on .nexus-card)
-   ============================================================ */
-.nexus-glass-elevated {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1.65rem;
-  background:
-    linear-gradient(150deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)),
-    rgba(8, 15, 30, 0.7);
-  box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(34, 211, 238, 0.04);
-  backdrop-filter: blur(26px);
-}
-
-.nexus-glass-float {
-  border: 1px solid var(--nexus-border);
-  border-radius: 1.4rem;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
-    rgba(2, 6, 23, 0.55);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  animation: nexus-float 6s ease-in-out infinite;
-}
-
-/* Interactive glass card with a diagonal light sweep on hover */
-.nexus-card-interactive {
-  position: relative;
-  overflow: hidden;
-}
-.nexus-card-interactive::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.07) 48%, transparent 66%);
-  transform: translateX(-120%);
-  transition: transform 0.9s ease;
-  pointer-events: none;
-}
-.nexus-card-interactive:hover::after {
-  transform: translateX(120%);
-}
-.nexus-card-interactive:hover {
-  transform: translateY(-3px);
-}
-
-/* ============================================================
-   Cinematic global background system
-   ============================================================ */
 .nexus-bg {
   position: fixed;
   inset: 0;
@@ -420,6 +514,7 @@ h3,
   pointer-events: none;
   overflow: hidden;
 }
+
 .nexus-bg-aurora {
   position: absolute;
   inset: -25%;
@@ -431,28 +526,32 @@ h3,
   filter: blur(30px);
   animation: nexus-aurora-move 28s ease-in-out infinite;
 }
+
 @keyframes nexus-aurora-move {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
   33% { transform: translate3d(3%, -2%, 0) scale(1.05); }
   66% { transform: translate3d(-2%, 2%, 0) scale(1.03); }
 }
+
 .nexus-bg-grid {
   position: absolute;
   inset: 0;
-  opacity: 0.5;
+  opacity: 0.4;
   background-image:
-    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
   -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 38%, black, transparent 92%);
   mask-image: radial-gradient(ellipse 80% 60% at 50% 38%, black, transparent 92%);
 }
+
 .nexus-bg-lines {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
+
 .nexus-route {
   fill: none;
   stroke: url(#nexusRouteGrad);
@@ -461,43 +560,63 @@ h3,
   animation: nexus-route-flow 9s linear infinite;
   opacity: 0.55;
 }
+
 @keyframes nexus-route-flow {
   to { stroke-dashoffset: -470; }
 }
+
 .nexus-dot {
   animation: nexus-dot-pulse 3.4s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: center;
 }
+
 @keyframes nexus-dot-pulse {
   0%, 100% { opacity: 0.35; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1.4); }
 }
+
 .nexus-bg-spotlight {
   position: absolute;
   inset: 0;
-  background: radial-gradient(600px circle at var(--mx, 50%) var(--my, -10%), rgba(56, 189, 248, 0.06), transparent 60%);
+  background: radial-gradient(600px circle at var(--mx, 50%) var(--my, -10%), rgba(56, 189, 248, 0.05), transparent 60%);
 }
+
 .nexus-bg-vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(130% 100% at 50% 0%, transparent 55%, rgba(2, 6, 23, 0.55) 100%);
+  background: radial-gradient(130% 100% at 50% 0%, transparent 55%, rgba(2, 6, 23, 0.6) 100%);
 }
+
+/* ============================================================
+   BUTTON SYSTEM
+   ============================================================ */
 
 .nexus-button-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
-  border: 1px solid rgba(103, 232, 249, 0.28);
+  border: none;
   border-radius: 1rem;
   padding: 0.9rem 1.25rem;
   font-weight: 800;
   color: #020617;
-  background: linear-gradient(90deg, #22d3ee, #3b82f6 50%, #a855f7);
+  background: linear-gradient(135deg, #22d3ee, #3b82f6 50%, #a855f7);
   box-shadow:
     0 14px 34px rgba(59, 130, 246, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.nexus-button-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent 50%);
+  pointer-events: none;
 }
 
 .nexus-button-primary:hover {
@@ -527,6 +646,39 @@ h3,
   background: rgba(34, 211, 238, 0.07);
 }
 
+/* Glossy button variant */
+.nexus-button-glossy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  padding: 0.9rem 1.25rem;
+  font-weight: 700;
+  color: white;
+  background:
+    linear-gradient(150deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+    rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.nexus-button-glossy:hover {
+  border-color: rgba(34, 211, 238, 0.25);
+  background:
+    linear-gradient(150deg, rgba(34,211,238,0.08), rgba(59,130,246,0.03)),
+    rgba(15, 23, 42, 0.6);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    0 8px 24px rgba(34, 211, 238, 0.08);
+}
+
+/* ============================================================
+   INPUT SYSTEM
+   ============================================================ */
+
 .nexus-input {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -543,13 +695,66 @@ h3,
 
 .nexus-input:focus {
   border-color: rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.07);
+  box-shadow:
+    0 0 0 4px rgba(34, 211, 238, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
+
+/* ============================================================
+   DECORATIVE ELEMENTS
+   ============================================================ */
 
 .nexus-divider {
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.11), transparent);
 }
+
+.nexus-divider-cyan {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.2), transparent);
+}
+
+.nexus-divider-glow {
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.15), rgba(168, 85, 247, 0.15), transparent);
+  filter: blur(1px);
+}
+
+/* Corner accent decoration */
+.nexus-corner-accent {
+  position: relative;
+}
+
+.nexus-corner-accent::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 24px;
+  height: 24px;
+  border-top: 2px solid rgba(34, 211, 238, 0.2);
+  border-left: 2px solid rgba(34, 211, 238, 0.2);
+  border-radius: 4px 0 0 0;
+  pointer-events: none;
+}
+
+.nexus-corner-accent::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 24px;
+  height: 24px;
+  border-bottom: 2px solid rgba(34, 211, 238, 0.2);
+  border-right: 2px solid rgba(34, 211, 238, 0.2);
+  border-radius: 0 0 4px 0;
+  pointer-events: none;
+}
+
+/* ============================================================
+   SHIMMER / SKELETON LOADING
+   ============================================================ */
 
 .nexus-shimmer {
   position: relative;
@@ -571,24 +776,61 @@ h3,
 }
 
 @keyframes nexus-shimmer {
-  100% {
-    transform: translateX(120%);
-  }
+  100% { transform: translateX(120%); }
 }
 
 @keyframes nexus-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 .nexus-float {
   animation: nexus-float 5s ease-in-out infinite;
 }
+
+/* Fade-in slide up for dropdowns */
+@keyframes nexus-fade-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.nexus-fade-in {
+  animation: nexus-fade-in 0.15s ease-out;
+}
+
+/* Subtle breathe animation for premium elements */
+@keyframes nexus-breathe {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.nexus-breathe {
+  animation: nexus-breathe 4s ease-in-out infinite;
+}
+
+/* Glow pulse for rings / decorative elements */
+@keyframes nexus-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(34, 211, 238, 0.08); }
+  50% { box-shadow: 0 0 20px rgba(34, 211, 238, 0.18); }
+}
+
+.nexus-glow-pulse {
+  animation: nexus-glow-pulse 3s ease-in-out infinite;
+}
+
+/* Orbiting ring animation */
+@keyframes nexus-ring-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.nexus-ring-orbit {
+  animation: nexus-ring-rotate 20s linear infinite;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
 
 @media (max-width: 767px) {
   .nexus-container {
@@ -600,6 +842,23 @@ h3,
   }
 }
 
+/* Only show light-sweep card effect on hover-capable devices */
+@media (hover: hover) {
+  .nexus-card-elevated::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.06) 48%, transparent 66%);
+    transform: translateX(-120%);
+    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+
+  .nexus-card-elevated:hover::after {
+    transform: translateX(120%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -608,5 +867,10 @@ h3,
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* Disable grain overlay */
+  .nexus-grain {
+    display: none;
   }
 }

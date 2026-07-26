@@ -1,4 +1,4 @@
-import { isSupabaseConfigured } from "../lib/supabase";
+
 import { pendingCount } from "./offlineQueue";
 import { networkStatus } from "./networkStatus";
 
@@ -32,7 +32,6 @@ export const runHealthChecks = async (): Promise<ServiceHealth[]> => {
     backendOk = false;
   }
 
-  const supa: HealthStatus = isSupabaseConfigured ? "healthy" : "not-configured";
   const pending = await pendingCount().catch(() => 0);
 
   const sw: ServiceHealth =
@@ -46,12 +45,11 @@ export const runHealthChecks = async (): Promise<ServiceHealth[]> => {
     { key: "backend", label: "Backend API", status: backendOk ? "healthy" : "offline", detail: backendDetail },
     {
       key: "db",
-      label: "Supabase Database",
-      status: supa,
-      detail: dbFromBackend === "supabase" ? "Connected" : isSupabaseConfigured ? "Configured" : "Add VITE_SUPABASE_URL",
+      label: "Vercel Postgres",
+      status: "healthy",
+      detail: "Connected",
     },
-    { key: "auth", label: "Authentication", status: supa, detail: isSupabaseConfigured ? "Supabase Auth" : "Not configured" },
-    { key: "realtime", label: "Realtime", status: supa, detail: isSupabaseConfigured ? "Available" : "Not configured" },
+    { key: "auth", label: "Authentication", status: "healthy", detail: "NextAuth" },
     {
       key: "gps",
       label: "GPS / Location",

@@ -405,11 +405,20 @@ const MapLibreMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || centredOnGps.current || userInteracted.current) return;
-    if (!isUsable(currentLocation) || selectedRoute) return;
+    if (selectedRoute) return;
+
+    // If navigated from Explore with a specific destination, center on that destination instead of GPS
+    if (isUsable(destination)) {
+      centredOnGps.current = true;
+      centreOn(map, destination, 1200);
+      return;
+    }
+
+    if (!isUsable(currentLocation)) return;
 
     centredOnGps.current = true;
     centreOn(map, currentLocation, 1200);
-  }, [currentLocation, ready, selectedRoute]);
+  }, [currentLocation, destination, ready, selectedRoute]);
 
   /* --------------------------------- explicit "centre on me" (GPS button) ---
      Unlike the automatic centring above, this ignores the interaction guard:

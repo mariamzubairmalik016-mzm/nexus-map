@@ -4,8 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "concurrently -n next,api -c cyan,magenta \"next dev --webpack\" \"node backend/server.mjs\"",
+    "dev:next": "next dev --webpack",
+    "dev:backend": "node backend/server.mjs",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc -b --noEmit"
@@ -19,9 +21,12 @@
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.4.0",
     "axios": "^1.12.2",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
     "framer-motion": "^12.23.12",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
@@ -40,6 +45,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.1.13",
+    "@types/bcryptjs": "^2.4.6",
     "@types/leaflet": "^1.9.20",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.20.0",
@@ -49,6 +55,7 @@
     "concurrently": "^9.2.4",
     "drizzle-kit": "^0.31.10",
     "fake-indexeddb": "^6.2.5",
+    "lightningcss-darwin-arm64": "^1.33.0",
     "postcss": "^8.5.23",
     "tailwindcss": "^4.1.13",
     "typescript": "~5.9.2"

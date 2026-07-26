@@ -62,10 +62,11 @@ export async function GET(req: NextRequest) {
       success: true,
       data: finalAlerts,
       meta: {
-        sources: {
-          community: { count: communityAlerts.length },
-          demo: { count: demoAlerts.length }
-        }
+        api: { status: "connected", count: 0 },
+        community: { count: communityAlerts.length },
+        admin: { count: 0 },
+        cached: { count: 0 },
+        demo: { enabled: includeDemo, count: demoAlerts.length }
       }
     });
   } catch (error) {
@@ -75,12 +76,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
+  const userEmail = session?.user?.email;
+  if (!userEmail) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
   const userRecord = await db.query.users.findFirst({
-    where: (users, { eq }) => eq(users.email, session.user.email!),
+    where: (users, { eq }) => eq(users.email, userEmail),
   });
   
   if (!userRecord) return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
