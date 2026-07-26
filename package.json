@@ -55,7 +55,6 @@
     "concurrently": "^9.2.4",
     "drizzle-kit": "^0.31.10",
     "fake-indexeddb": "^6.2.5",
-    "lightningcss-darwin-arm64": "^1.33.0",
     "postcss": "^8.5.23",
     "tailwindcss": "^4.1.13",
     "typescript": "~5.9.2"
