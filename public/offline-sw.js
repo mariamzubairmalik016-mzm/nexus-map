@@ -10,11 +10,11 @@
  * Nothing that isn't a successful (2xx, non-opaque) response is ever cached.
  */
 
-const APP_CACHE = "nexus-map-app-v6";
+const APP_CACHE = "nexus-map-app-v7";
 const TILE_CACHE = "nexus-map-offline-tiles-v1";
 const API_CACHE = "nexus-map-api-v1";
 
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/pwa-icon.svg", "/favicon.svg"];
+const APP_SHELL = ["/", "/manifest.webmanifest", "/pwa-icon.svg", "/favicon.svg"];
 const SYNC_TAG = "nexus-sync-queue";
 
 // Caches kept across activations; anything else is a stale version.
@@ -145,7 +145,7 @@ self.addEventListener("fetch", (event) => {
         .catch(async () => {
           if (cached) return cached;
           if (request.mode === "navigate") {
-            const shell = await caches.match("/index.html", { cacheName: APP_CACHE });
+            const shell = await caches.match("/", { cacheName: APP_CACHE });
             if (shell) return shell;
           }
           return new Response("Offline", { status: 503 });
