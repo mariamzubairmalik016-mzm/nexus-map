@@ -47,7 +47,7 @@ const Navbar = () => {
   const navigate = useRouter();
   const { data: session } = useSession();
   const user = session?.user;
-  const profile = { full_name: user?.name, role: "user" };
+  const profile = { full_name: user?.name, role: (user as any)?.role || "user" };
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
