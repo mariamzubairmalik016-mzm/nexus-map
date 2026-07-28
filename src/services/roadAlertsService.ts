@@ -119,20 +119,63 @@ export const roadAlertsService = {
   confirm: (id: string) => api.post<RoadAlert>(`/road-alerts/${id}/confirm`, {}),
   resolve: (id: string) => api.post<RoadAlert>(`/road-alerts/${id}/resolve`, {}),
 
-  // Removed Supabase Realtime in favor of Vercel Postgres (no native websockets).
-  // Falling back to a simple polling mechanism for live updates.
+  /**
+   * Live alert updates.
+   *
+   * Vercel Postgres has no websockets, so this polls. Three things make the
+   * polling behave like a live feed rather than a timer:
+   *
+   *   - 10s while the tab is visible, not 30s. Half a minute is long enough
+   *     that a hazard someone just reported feels absent rather than new.
+   *   - Nothing at all while the tab is hidden. The old interval kept firing
+   *     in background tabs, burning requests nobody could see.
+   *   - An immediate refresh when the tab is focused again or the connection
+   *     returns, so what you see on returning is current rather than however
+   *     stale it was when you left.
+   */
   subscribeRealtime(onChange: () => void): () => void {
-    if (networkStatus.isOffline()) return () => {};
-    
-    // Poll every 30 seconds for new alerts
-    const intervalId = setInterval(() => {
-      if (!networkStatus.isOffline()) {
-        onChange();
+    const POLL_MS = 10_000;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const stop = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
       }
-    }, 30000);
+    };
+
+    const start = () => {
+      if (intervalId !== null) return;
+      intervalId = setInterval(() => {
+        if (!networkStatus.isOffline() && document.visibilityState === "visible") onChange();
+      }, POLL_MS);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        if (!networkStatus.isOffline()) onChange();
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    const onOnline = () => {
+      onChange();
+      start();
+    };
+
+    if (document.visibilityState === "visible" && !networkStatus.isOffline()) start();
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", stop);
 
     return () => {
-      clearInterval(intervalId);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", stop);
     };
   },
 };

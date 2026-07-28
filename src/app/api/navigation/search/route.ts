@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchTomTom } from "../../../../services/tomtom.service";
 import { searchOsm } from "../../../../services/osmGeocode.service";
+import { searchGeoapify } from "../../../../services/geoapify.service";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +57,26 @@ export async function GET(req: NextRequest) {
   try {
     const country = await countryForBias(lat, lon);
 
-    const [tomTomResults, osmResults] = await Promise.all([
+    const bias = Number.isFinite(lat) && Number.isFinite(lon) ? { latitude: lat!, longitude: lon! } : null;
+
+    const [tomTomResults, osmResults, geoapifyResults] = await Promise.all([
       searchTomTom(query, lat, lon).catch(() => []),
       searchOsm(query, country).catch(() => []),
+      searchGeoapify(query, bias, country).catch(() => []),
     ]);
 
     const fromTomTom = tomTomResults.map((item) => ({ ...item, source: "tomtom" }));
+
+    const fromGeoapify = geoapifyResults.map((item) => ({
+      id: item.id,
+      name: item.name,
+      address: item.address,
+      city: item.city,
+      country: item.country,
+      category: item.category,
+      position: item.position,
+      source: "geoapify",
+    }));
 
     const fromOsm = osmResults.map((item) => ({
       id: item.id,
@@ -84,6 +99,12 @@ export async function GET(req: NextRequest) {
 
     const merged = [
       ...fromTomTom,
+      ...fromGeoapify.filter((item) => {
+        const key = `${item.name.toLowerCase()}|${item.position.latitude.toFixed(3)}|${item.position.longitude.toFixed(3)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }),
       ...fromOsm.filter((item) => {
         const key = `${item.name.toLowerCase()}|${item.position.latitude.toFixed(3)}|${item.position.longitude.toFixed(3)}`;
         if (seen.has(key)) return false;
@@ -143,15 +164,26 @@ export async function GET(req: NextRequest) {
      * in the suggestion list. Running after the sort means the survivor is the
      * closest one to the user rather than an arbitrary segment.
      */
-    const byNameAndCity = new Set<string>();
+    const byPlace = new Set<string>();
     const final = ranked.filter((item) => {
-      const key = `${(item.name || "").toLowerCase()}|${(item.city || "").toLowerCase()}`;
-      if (byNameAndCity.has(key)) return false;
-      byNameAndCity.add(key);
+      // Coordinates rounded to ~1 km are part of the key on purpose. Keying on
+      // name + city alone collapsed genuinely different places that happen to
+      // share a name — two hospitals in Karachi, several "Block 1" entries —
+      // which works against showing every local area.
+      const key = [
+        (item.name || "").toLowerCase(),
+        (item.city || "").toLowerCase(),
+        item.position.latitude.toFixed(2),
+        item.position.longitude.toFixed(2),
+      ].join("|");
+      if (byPlace.has(key)) return false;
+      byPlace.add(key);
       return true;
     });
 
-    return NextResponse.json({ success: true, data: final });
+    // Enough room for three providers' worth of local detail without dumping
+    // an unbounded list into the suggestion dropdown.
+    return NextResponse.json({ success: true, data: final.slice(0, 24) });
   } catch (error) {
     return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
   }
