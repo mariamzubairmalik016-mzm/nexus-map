@@ -45,7 +45,7 @@ export const viewport: Viewport = {
 
 import Navbar from "../components/layouts/Navbar";
 import Footer from "../components/layouts/Footer";
-import AIChatbot from "../components/ai/AIChatbot";
+import LiveAIVoice from "../components/ai/LiveAIVoice";
 import CinematicBackground from "../components/ui/CinematicBackground";
 
 export default function RootLayout({
@@ -73,7 +73,7 @@ export default function RootLayout({
             <div className="relative z-10">
               <Footer />
             </div>
-            <AIChatbot />
+            <LiveAIVoice />
           </div>
         </Providers>
       </body>

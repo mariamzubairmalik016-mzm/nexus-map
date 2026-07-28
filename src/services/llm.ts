@@ -31,6 +31,16 @@ const OPENROUTER_MODELS = [
 ];
 
 const resolveProvider = (): Provider | null => {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (geminiKey) {
+    return {
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      key: geminiKey,
+      models: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-flash"],
+      headers: {},
+    };
+  }
+
   const openRouterKey = process.env.OPENROUTER_API_KEY;
   if (openRouterKey) {
     const configured = process.env.OPENROUTER_MODEL;
