@@ -8,6 +8,8 @@ import { offlineDb, type OfflineFavorite } from "../../services/offlineDb";
 import { favoritesService } from "../../services/favoritesService";
 import { destinationImage } from "../../services/destinationImage";
 import DestinationImage from "../../components/ui/DestinationImage";
+import PageShell from "../../components/layouts/PageShell";
+import PageHeader from "../../components/layouts/PageHeader";
 
 const Favorites = () => {
   const [items, setItems] = useState<OfflineFavorite[]>([]);
@@ -34,64 +36,73 @@ const Favorites = () => {
   };
 
   return (
-    <section className="min-h-[calc(100vh-80px)] px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <p className="text-sm uppercase tracking-[.25em] text-cyan-400">Saved collection</p>
-        <h1 className="mt-3 text-4xl font-bold">Your favorite places</h1>
+    <PageShell>
+      <PageHeader
+        eyebrow="Saved collection"
+        title="Your favorite places"
+        description={
+          items.length > 0
+            ? `${items.length} ${items.length === 1 ? "place" : "places"} saved for offline access.`
+            : undefined
+        }
+      />
 
-        {loading && (
-          <div className="flex min-h-80 items-center justify-center">
-            <LoaderCircle size={48} className="animate-spin text-cyan-400" />
-          </div>
-        )}
+      {loading && (
+        <div className="flex min-h-80 items-center justify-center" role="status" aria-label="Loading favorites">
+          <LoaderCircle size={48} className="animate-spin text-cyan-400" />
+        </div>
+      )}
 
-        {!loading && (
-          <div className="mt-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {items.map((place) => (
-              <article key={place.id} className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[.04]">
-                <DestinationImage
-                  src={destinationImage(place.name, place.imageUrl)}
-                  alt={place.name}
-                  className="aspect-[16/10] w-full"
-                />
-                <div className="p-5">
-                  <h2 className="text-2xl font-bold">{place.name}</h2>
-                  <p className="mt-2 text-slate-400">
-                    {[place.city, place.country].filter(Boolean).join(", ") || "Saved place"}
-                  </p>
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <Link
-                       href={`/map?place=${encodeURIComponent(place.name)}`}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-sm font-semibold text-slate-950"
-                    >
-                      <MapPin size={17} />
-                      Map
-                    </Link>
-                    <button
-                      onClick={() => remove(place.id)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-400/10 py-3 text-sm text-red-300"
-                    >
-                      <Trash2 size={17} />
-                      Remove
-                    </button>
-                  </div>
+      {!loading && items.length > 0 && (
+        <div className="mt-10 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((place) => (
+            <article key={place.id} className="nexus-card-elevated overflow-hidden">
+              <DestinationImage
+                src={destinationImage(place.name, place.imageUrl)}
+                alt={place.name}
+                className="aspect-[16/10] w-full"
+              />
+              <div className="p-5">
+                <h2 className="font-display text-xl font-bold">{place.name}</h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  {[place.city, place.country].filter(Boolean).join(", ") || "Saved place"}
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <Link
+                    href={`/map?place=${encodeURIComponent(place.name)}`}
+                    className="nexus-button-primary nexus-button-sm"
+                  >
+                    <MapPin size={17} aria-hidden="true" />
+                    Map
+                  </Link>
+                  <button
+                    onClick={() => remove(place.id)}
+                    className="nexus-button-danger-quiet nexus-button-sm"
+                  >
+                    <Trash2 size={17} aria-hidden="true" />
+                    Remove
+                  </button>
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
 
-        {!loading && items.length === 0 && (
-          <div className="mt-10 rounded-[28px] border border-dashed border-white/10 p-16 text-center">
-            <Heart className="mx-auto text-slate-600" size={42} />
-            <p className="mt-4 text-2xl font-bold">No favorites yet</p>
-            <p className="mt-2 text-slate-500">
-              Tap the heart on any destination in <Link  href="/explore" className="text-cyan-400">Explore</Link> to save it here.
-            </p>
-          </div>
-        )}
-      </div>
-    </section>
+      {!loading && items.length === 0 && (
+        <div className="mt-10 rounded-[var(--r-xl)] border border-dashed border-white/10 p-16 text-center">
+          <Heart className="mx-auto text-slate-600" size={42} aria-hidden="true" />
+          <p className="mt-4 font-display text-2xl font-bold">No favorites yet</p>
+          <p className="mx-auto mt-2 max-w-md text-slate-400">
+            Tap the heart on any destination in{" "}
+            <Link href="/explore" className="text-cyan-400 underline-offset-4 hover:underline">
+              Explore
+            </Link>{" "}
+            to save it here.
+          </p>
+        </div>
+      )}
+    </PageShell>
   );
 };
 

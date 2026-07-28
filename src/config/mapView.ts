@@ -45,3 +45,20 @@ export const getInitialCenter = () => {
   const view = getInitialView();
   return { latitude: view.lat, longitude: view.lng };
 };
+
+/**
+ * Where the user has actually been, or null.
+ *
+ * Deliberately distinct from `getInitialCenter()`, which falls back to the
+ * configured default centre. That default is 30.3753, 69.3451 — the geographic
+ * centre of Pakistan, which is empty Balochistan desert. It is a fine place to
+ * *open the map*, but it is not evidence of where the user is, and biasing
+ * search towards it returned arbitrary rural roads for ordinary queries.
+ *
+ * Search should bias to a saved view (somewhere they navigated to) or a GPS
+ * fix, and otherwise not bias at all.
+ */
+export const getSavedCenter = (): { latitude: number; longitude: number } | null => {
+  const saved = readSavedView();
+  return saved ? { latitude: saved.lat, longitude: saved.lng } : null;
+};

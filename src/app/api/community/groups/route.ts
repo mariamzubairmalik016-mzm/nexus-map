@@ -5,11 +5,14 @@ import { db } from "../../../../db";
 import { travelGroups, groupMembers } from "../../../../db/schema";
 import { eq, like, or, sql } from "drizzle-orm";
 
-const SEED_GROUPS = [
-  { id: "grp-1", name: "Pakistan Travel Explorers", description: "A community for travelers exploring the beauty of Pakistan. Share experiences, tips, and plan group trips!", memberCount: 1245, isPublic: 1, tags: JSON.stringify(["pakistan","travel","adventure"]), createdBy: "seed" },
-  { id: "grp-2", name: "Hunza Valley Lovers", description: "Dedicated to everyone who fell in love with Hunza. Share photos, experiences, and local insights.", memberCount: 876, isPublic: 1, tags: JSON.stringify(["hunza","nature","photography"]), createdBy: "seed" },
-  { id: "grp-3", name: "Budget Backpackers Pakistan", description: "Travel Pakistan on a budget! Share tips on affordable stays, cheap eats, and low-cost adventures.", memberCount: 543, isPublic: 1, tags: JSON.stringify(["budget","backpacking","tips"]), createdBy: "seed" },
-];
+/**
+ * No seed fallback.
+ *
+ * This route used to return a hardcoded array when the table was empty, so a
+ * fresh deployment showed invented posts attributed to invented people
+ * ("Ali Khan", "Fatima Zaidi") as if they were real community activity. An
+ * empty table now returns an empty list and the UI shows a real empty state.
+ */
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,7 +39,7 @@ export async function GET(req: NextRequest) {
       // DB not available
     }
 
-    let results = [...SEED_GROUPS];
+    let results: any[] = [];
     if (search) {
       const q = search.toLowerCase();
       results = results.filter(g => g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q));

@@ -140,7 +140,7 @@ const Explore = () => {
   };
 
   return (
-    <section className="nexus-page px-4 py-14 sm:px-6 lg:px-8">
+    <section className="nexus-page nexus-page-body">
       <div className="nexus-container">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 18 }}
@@ -163,7 +163,7 @@ const Explore = () => {
             initial={reduce ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="group relative mt-9 overflow-hidden rounded-[30px] border border-white/10"
+            className="group relative mt-9 overflow-hidden rounded-[var(--r-2xl)] border border-white/10"
           >
             <DestinationImage
               src={imageFor(featured)}
@@ -254,7 +254,7 @@ const Explore = () => {
 
         {/* Error state */}
         {error && !loading && (
-          <div className="mt-10 rounded-[28px] border border-red-400/20 bg-red-400/10 p-8 text-center text-red-300">
+          <div className="mt-10 rounded-[var(--r-xl)] border border-red-400/20 bg-red-400/10 p-8 text-center text-red-300">
             <h2 className="text-xl font-bold">Destinations could not be loaded</h2>
             <p className="mt-3 text-sm">{error}</p>
             <p className="mt-3 text-xs text-red-200/60">
@@ -265,7 +265,7 @@ const Explore = () => {
 
         {/* Empty state */}
         {!loading && !error && cities.length === 0 && (
-          <div className="mt-10 rounded-[28px] border border-dashed border-white/10 p-16 text-center">
+          <div className="mt-10 rounded-[var(--r-xl)] border border-dashed border-white/10 p-16 text-center">
             <MapPin className="mx-auto text-slate-600" size={44} />
             <h2 className="mt-4 text-2xl font-bold">No destinations found</h2>
             <p className="mt-2 text-slate-500">Try a different search or filter.</p>

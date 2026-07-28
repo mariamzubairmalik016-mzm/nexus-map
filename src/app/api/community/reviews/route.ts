@@ -5,11 +5,14 @@ import { db } from "../../../../db";
 import { tourismReviews } from "../../../../db/schema";
 import { eq } from "drizzle-orm";
 
-const SEED_REVIEWS = [
-  { id: "rev-1", userId: "seed", userName: "Ali Khan", placeId: "poi-2", placeName: "Badshahi Mosque", rating: 5, title: "Breathtaking Mughal architecture", content: "The sheer scale and intricate craftsmanship left me speechless.", images: "[]", likes: 24, helpfulCount: 12 },
-  { id: "rev-2", userId: "seed", userName: "Fatima Zaidi", placeId: "poi-6", placeName: "Attabad Lake", rating: 5, title: "Most beautiful lake in Pakistan", content: "The turquoise waters against the dramatic mountain backdrop is unforgettable.", images: "[]", likes: 31, helpfulCount: 18 },
-  { id: "rev-3", userId: "seed", userName: "Usman Tariq", placeId: "poi-7", placeName: "Fairy Meadows", rating: 5, title: "Like walking in a dream", content: "Camping under the stars with Nanga Parbat towering above is incredible.", images: "[]", likes: 45, helpfulCount: 22 },
-];
+/**
+ * No seed fallback.
+ *
+ * This route used to return a hardcoded array when the table was empty, so a
+ * fresh deployment showed invented posts attributed to invented people
+ * ("Ali Khan", "Fatima Zaidi") as if they were real community activity. An
+ * empty table now returns an empty list and the UI shows a real empty state.
+ */
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,7 +31,7 @@ export async function GET(req: NextRequest) {
       // DB not available, use seed
     }
 
-    let results = SEED_REVIEWS;
+    let results: any[] = [];
     if (placeId) results = results.filter(r => r.placeId === placeId);
     return NextResponse.json({ success: true, data: results });
   } catch (error) {

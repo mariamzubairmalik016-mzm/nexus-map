@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
     // Ensure defaults that the Express zod validation provided
     if (!body.travelMode) body.travelMode = "car";
     if (typeof body.avoidTolls !== "boolean") body.avoidTolls = false;
+    if (typeof body.avoidFerries !== "boolean") body.avoidFerries = false;
+    if (body.routeType !== "shortest") body.routeType = "fastest";
     if (typeof body.alternatives !== "number") body.alternatives = 2;
 
     const data = await calculateTomTomRoutes(body);

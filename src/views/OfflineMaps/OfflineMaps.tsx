@@ -224,11 +224,11 @@ const OfflineMaps = () => {
   };
 
   return (
-    <section className="min-h-[calc(100vh-80px)] px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <section className="nexus-page nexus-page-body">
+      <div className="nexus-container">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[.25em] text-cyan-400">Worldwide offline navigation</p>
+            <p className="nexus-eyebrow">Worldwide offline navigation</p>
             <h1 className="mt-3 text-4xl font-bold">Download any location</h1>
             <p className="mt-4 max-w-2xl text-slate-400">
               Download real map tiles for a location and open that exact area on the map — even with no connection.
@@ -258,7 +258,7 @@ const OfflineMaps = () => {
 
         <div className="mt-9 grid gap-7 lg:grid-cols-[420px_1fr]">
           <div className="space-y-6">
-            <form onSubmit={submit} className="rounded-[30px] border border-white/10 bg-white/[.04] p-6">
+            <form onSubmit={submit} className="nexus-card p-6">
               <div className="flex items-center gap-3">
                 <Globe2 className="text-cyan-400" />
                 <h2 className="text-2xl font-bold">Custom map download</h2>
@@ -300,14 +300,14 @@ const OfflineMaps = () => {
 
               <button
                 disabled={scopeEstimate.tooLarge}
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 py-4 font-semibold text-slate-950 disabled:opacity-50"
+                className="nexus-button-primary nexus-button-block mt-5"
               >
                 <Download size={19} />
                 Download this area
               </button>
             </form>
 
-            <div className="rounded-[30px] border border-white/10 bg-white/[.04] p-6">
+            <div className="nexus-card p-6">
               <div className="flex items-center gap-3">
                 <Search className="text-cyan-400" />
                 <h2 className="text-2xl font-bold">Offline search</h2>
@@ -351,7 +351,7 @@ const OfflineMaps = () => {
               {areas.map((area) => {
                 const downloaded = area.status === "downloaded";
                 return (
-                  <article key={area.id} className="rounded-[26px] border border-white/10 bg-white/[.04] p-5">
+                  <article key={area.id} className="nexus-card p-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex gap-4">
                         <div className="rounded-2xl bg-purple-400/10 p-3 text-purple-400">
@@ -402,7 +402,7 @@ const OfflineMaps = () => {
                           <button
                             type="button"
                             onClick={() => openMap(area)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950"
+                            className="nexus-button-primary nexus-button-sm"
                           >
                             <ExternalLink size={17} />
                             Open Map
@@ -444,7 +444,7 @@ const OfflineMaps = () => {
             </div>
 
             {areas.length === 0 && (
-              <div className="mt-6 rounded-[28px] border border-dashed border-white/10 p-16 text-center">
+              <div className="mt-6 rounded-[var(--r-xl)] border border-dashed border-white/10 p-16 text-center">
                 <WifiOff className="mx-auto text-slate-600" />
                 <p className="mt-3 text-sm text-slate-500">No offline maps yet. Download a location to get started.</p>
               </div>

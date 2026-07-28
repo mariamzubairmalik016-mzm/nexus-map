@@ -14,3 +14,8 @@ backend/.env.local
 # It carries its own .env files with real credentials.
 nexus-map/
 .vercel
+
+# Local backups and tool state — never commit (may contain secrets)
+*.bak
+.env.local.bak
+.freebuff/

@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import LoginForm from "../../components/auth/LoginForm";
 import AuthShell from "../../components/auth/AuthShell";
 
+/**
+ * The "Forgot your password?" line that sat under the form is gone — LoginForm
+ * already renders one directly beneath the password field, where it is useful.
+ * Two links to the same page a few pixels apart only made the footer ambiguous.
+ */
 const Login = () => (
   <AuthShell
     eyebrow="Welcome back"
@@ -11,18 +16,13 @@ const Login = () => (
     footer={
       <>
         New here?{" "}
-        <Link  href="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200">
+        <Link href="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200">
           Create account
         </Link>
       </>
     }
   >
     <LoginForm />
-    <p className="mt-4 text-center text-xs text-slate-500">
-      <Link  href="/forgot-password" className="hover:text-slate-300">
-        Forgot your password?
-      </Link>
-    </p>
   </AuthShell>
 );
 

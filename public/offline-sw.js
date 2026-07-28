@@ -10,7 +10,11 @@
  * Nothing that isn't a successful (2xx, non-opaque) response is ever cached.
  */
 
-const APP_CACHE = "nexus-map-app-v7";
+// v8: v7 served HTML navigations cache-first, which pinned stale markup to
+// build-hashed /_next/static chunk URLs. Once a rebuild changed those hashes
+// the cached HTML asked for scripts that no longer existed, and every page
+// rendered blank. Bumping the name drops those poisoned entries on activate.
+const APP_CACHE = "nexus-map-app-v8";
 const TILE_CACHE = "nexus-map-offline-tiles-v1";
 const API_CACHE = "nexus-map-api-v1";
 
@@ -130,7 +134,37 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // --- HTML NAVIGATIONS: network-first ---------------------------------
+  // Markup must never come from cache while the network is reachable. The
+  // HTML embeds build-hashed script URLs, so a cached copy outlives exactly
+  // one rebuild before pointing at chunks that 404 — a blank page, and one
+  // that survives a normal reload because the SW answers before the network.
+  // Falling back to cache only on a genuine fetch failure keeps offline
+  // navigation working, which is the reason the shell is cached at all.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(request);
+          if (isCacheable(response)) {
+            event.waitUntil(putInCache(APP_CACHE, request, response.clone()));
+          }
+          return response;
+        } catch {
+          const cached = await caches.match(request, { cacheName: APP_CACHE });
+          if (cached) return cached;
+          const shell = await caches.match("/", { cacheName: APP_CACHE });
+          if (shell) return shell;
+          return new Response("Offline", { status: 503 });
+        }
+      })(),
+    );
+    return;
+  }
+
   // --- APP SHELL / assets: cache-first, refreshed in the background ---
+  // Safe here because everything reaching this branch is either a static asset
+  // with a content hash in its name or an icon that changes rarely.
   event.respondWith(
     (async () => {
       const cached = await caches.match(request, { cacheName: APP_CACHE });

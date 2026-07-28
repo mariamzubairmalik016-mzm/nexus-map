@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import SignupForm from "../../components/auth/SignupForm";
 import AuthShell from "../../components/auth/AuthShell";
 
@@ -11,7 +10,7 @@ const Signup = () => (
     footer={
       <>
         Already registered?{" "}
-        <Link  href="/login" className="font-semibold text-cyan-300 hover:text-cyan-200">
+        <Link href="/login" className="font-semibold text-cyan-300 hover:text-cyan-200">
           Sign in
         </Link>
       </>

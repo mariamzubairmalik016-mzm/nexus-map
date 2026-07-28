@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { resolveDestination, buildPlaceProfile } from "../../../../services/tripPlaces";
+import { writeNarrative } from "../../../../services/tripNarrative";
+
+// Live place lookup runs per request, so this route can never be prerendered.
+export const dynamic = "force-dynamic";
+
 const destinationProfiles: Record<
   string,
   {
@@ -309,9 +315,59 @@ export async function POST(req: NextRequest) {
       normalized.includes(key),
     );
 
-    const profile = profileKey
-      ? destinationProfiles[profileKey]
-      : genericProfile(body.destination);
+    /**
+     * Three tiers, best first:
+     *   1. A curated profile — real local knowledge (Baltit Fort, chapshuro)
+     *      that no POI API returns. Only five destinations have one.
+     *   2. Real places looked up from `tourism_pois` and TomTom. This is what
+     *      the other ~everywhere now gets instead of "<city> main landmark".
+     *   3. The generic profile, only when a lookup genuinely returns nothing
+     *      (offline, provider down, or a destination with no POI coverage).
+     */
+    let profile = profileKey ? destinationProfiles[profileKey] : null;
+    let placeSource: string = profileKey ? "curated" : "generic";
+
+    if (!profile) {
+      const coords = await resolveDestination(body.destination);
+      const places = await buildPlaceProfile(body.destination, coords);
+
+      if (places.source !== "none" && places.attractions.length > 0) {
+        const generic = genericProfile(body.destination);
+        profile = {
+          attractions: places.attractions,
+          // Keep a category non-empty by falling back per-field rather than
+          // wholesale — a city with real attractions but no listed parks
+          // should still use its real attractions.
+          foods: places.foods.length > 0 ? places.foods : generic.foods,
+          nature: places.nature.length > 0 ? places.nature : generic.nature,
+          shopping: places.shopping.length > 0 ? places.shopping : generic.shopping,
+          hotel: places.hotel || generic.hotel,
+          safety: generic.safety,
+          packing: generic.packing,
+        };
+        placeSource = places.source;
+      } else {
+        profile = genericProfile(body.destination);
+      }
+    }
+
+    /**
+     * A destination with thin POI coverage (Skardu returns a single result)
+     * would otherwise have `rotate()` hand back the same place twice, printing
+     * day titles like "Shangrila Resort and Shangrila Resort". Top the pool up
+     * with generic entries so every day has two distinct things in it; the real
+     * places stay first, so they are the ones that get used.
+     */
+    const needed = body.days * 2;
+    if (profile.attractions.length < needed) {
+      const filler = genericProfile(body.destination).attractions.filter(
+        (item) => !profile!.attractions.includes(item),
+      );
+      profile = {
+        ...profile,
+        attractions: [...profile.attractions, ...filler].slice(0, Math.max(needed, profile.attractions.length)),
+      };
+    }
 
     const dailyBudget = Math.max(1, Math.floor(body.budget / body.days));
 
@@ -478,6 +534,31 @@ export async function POST(req: NextRequest) {
       0,
     );
 
+    /**
+     * Model-written prose over the factual plan. Applied only to titles and
+     * summaries — stops, times and costs are never handed to the model to
+     * change, so a hallucination cannot reach the itinerary itself.
+     */
+    let narrated = itinerary;
+    let narrativeSource: "model" | "generated" = "generated";
+
+    const narrative = await writeNarrative({
+      destination: body.destination,
+      tripType: body.tripType,
+      transport: body.transport,
+      currency: body.currency,
+      itinerary,
+    });
+
+    if (narrative.ok) {
+      const byDay = new Map(narrative.days.map((d) => [d.day, d]));
+      narrated = itinerary.map((day) => {
+        const written = byDay.get(day.day);
+        return written ? { ...day, title: written.title, summary: written.summary } : day;
+      });
+      narrativeSource = "model";
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -492,9 +573,13 @@ export async function POST(req: NextRequest) {
         foodSuggestion: profile.foods.join(", "),
         packingList: profile.packing,
         safetyTips: profile.safety,
-        itinerary,
+        itinerary: narrated,
         estimatedTotalCost,
         createdAt: new Date().toISOString(),
+        // Lets the UI say where the places came from instead of implying every
+        // plan is equally well-sourced.
+        placeSource,
+        narrativeSource,
       },
     });
   } catch (error) {
