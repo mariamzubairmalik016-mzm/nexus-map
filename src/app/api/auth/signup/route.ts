@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "../../../../db";
 import { users, profiles } from "../../../../db/schema";
+import { isValidAdminKey, adminKeyConfigured } from "../../../../services/adminKey";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ const SignupSchema = z.object({
     .string()
     .min(8, "Password must be at least 8 characters.")
     .max(128, "Password is too long."),
+  /** Optional. A correct value grants the admin role; see services/adminKey. */
+  adminKey: z.string().trim().max(128).optional(),
 });
 
 export async function POST(req: Request) {
@@ -42,7 +45,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ message }, { status: 400 });
     }
 
-    const { name, email, password } = parsed.data;
+    const { name, email, password, adminKey } = parsed.data;
+
+    /**
+     * An admin key was typed but does not match. Rejected rather than silently
+     * downgraded to a normal account: someone entering a key believes they are
+     * creating an admin, and quietly handing them a user account would hide the
+     * failure until they hit a permission wall they cannot explain.
+     */
+    if (adminKey && !isValidAdminKey(adminKey)) {
+      return NextResponse.json(
+        { message: "That admin key is not valid." },
+        { status: 403 },
+      );
+    }
+
+    const role = adminKey && isValidAdminKey(adminKey) ? "admin" : "user";
 
     const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
 
@@ -68,11 +86,21 @@ export async function POST(req: Request) {
     if (userId) {
       await db
         .insert(profiles)
-        .values({ id: userId, fullName: name, email, role: "user" })
+        .values({ id: userId, fullName: name, email, role })
         .onConflictDoNothing();
     }
 
-    return NextResponse.json({ message: "Account created successfully." }, { status: 201 });
+    return NextResponse.json(
+      {
+        message:
+          role === "admin"
+            ? "Admin account created successfully."
+            : "Account created successfully.",
+        // Echo the granted role, never the key itself.
+        role,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Signup error:", error);
     return NextResponse.json({ message: "Internal server error." }, { status: 500 });
