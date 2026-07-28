@@ -46,7 +46,9 @@ export const tourismDiscoveryService = {
 
       // Cache for offline
       if (filtered.length > 0) {
-        void offlineDb.saveDestinations(filtered.map(p => ({ id: p.id, ...p }))).catch(() => {});
+        // `{ id: p.id, ...p }` set `id` twice and the spread overwrote it, so
+        // the explicit key did nothing. `p` already carries its own id.
+        void offlineDb.saveDestinations(filtered.map((p) => ({ ...p }))).catch(() => {});
       }
 
       return filtered;

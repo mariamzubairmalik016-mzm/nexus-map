@@ -39,25 +39,7 @@ export const familySafetyService = {
   },
 
   // ─── Safety Tips ────────────────────────────────────────
-  async getSafetyTips(): Promise<string[]> {
-    try {
-      const data = await api.get<{ numbers: any[]; safetyTips: string[]; healthTips: string[] }>("/tourism/safety?type=emergency");
-      return data.safetyTips;
-    } catch {
-      return [];
-    }
-  },
-
   // ─── Health Tips ────────────────────────────────────────
-  async getHealthTips(): Promise<string[]> {
-    try {
-      const data = await api.get<{ numbers: any[]; safetyTips: string[]; healthTips: string[] }>("/tourism/safety?type=emergency");
-      return data.healthTips;
-    } catch {
-      return [];
-    }
-  },
-
   // ─── Health Facilities ──────────────────────────────────
   async getNearbyHealthFacilities(
     latitude: number,
@@ -166,6 +148,16 @@ export const familySafetyService = {
   },
 
   // ─── Travel Health Tips ─────────────────────────────────
+  /**
+   * Static on purpose. An async duplicate of this method used to sit earlier in
+   * the same object literal, fetching /tourism/safety — which returns these
+   * same strings as a literal array. JavaScript kept the later definition, so
+   * the async one never ran; TypeScript resolved the earlier one, which is why
+   * SafetyCenter appeared to call .map() on a Promise.
+   *
+   * General travel advice is editorial content, not data to fetch, so the
+   * indirection bought nothing.
+   */
   getHealthTips(): string[] {
     return [
       "Drink plenty of water in hot climates",

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  *
  * This replaces the wrapper that used to be retyped in each view:
  *
- *   <section className="min-h-[calc(100vh-80px)] px-4 py-14 sm:px-6 lg:px-8">
+ *   <section className="min-h-[calc(100dvh-80px)] px-4 py-14 sm:px-6 lg:px-8">
  *     <div className="mx-auto max-w-7xl">
  *
  * Retyping it let the pages drift — Dashboard settled on `py-8` while the rest

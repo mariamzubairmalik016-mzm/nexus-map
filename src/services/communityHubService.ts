@@ -6,6 +6,7 @@ import type {
 } from "../types/tourism";
 import { api } from "./api";
 import { offlineDb } from "./offlineDb";
+import type { DigitalPassport } from "../types/tourism";
 
 export const communityHubService = {
   // ─── Reviews ─────────────────────────────────────────────
@@ -113,11 +114,17 @@ export const communityHubService = {
   },
 
   // ─── Digital Passport ───────────────────────────────────
-  async getPassport(userId: string) {
+  /**
+   * `offlineDb.getSettings()` is untyped, so the stored branch inferred `{}`
+   * and every field read off the result — xp, level, countryStamps — failed to
+   * typecheck. Declaring the return type states the contract this function has
+   * always had in practice.
+   */
+  async getPassport(userId: string): Promise<DigitalPassport & { updatedAt?: string }> {
     try {
       const settings = await offlineDb.getSettings();
       const passport = settings.find((s: any) => s.id === `passport-${userId}`);
-      if (passport) return passport;
+      if (passport) return passport as DigitalPassport & { updatedAt?: string };
     } catch {
       // Fall through to default
     }

@@ -7,7 +7,7 @@ const NotFound = () => {
   const reduce = useReducedMotion();
 
   return (
-    <section className="flex min-h-[calc(100vh-80px)] items-center justify-center px-4 py-16">
+    <section className="flex min-h-[calc(100dvh-80px)] items-center justify-center px-4 py-16">
       <motion.div
         initial={reduce ? false : { opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
