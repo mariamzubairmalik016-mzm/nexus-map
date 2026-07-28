@@ -6,6 +6,7 @@ import {
   Bookmark,
   Bot,
   Car,
+  Download,
   Footprints,
   LocateFixed,
   Navigation,
@@ -153,6 +154,106 @@ const MapPage = () => {
    * there. Naming the place makes a bad fix obvious before routing.
    */
   const [gpsPlace, setGpsPlace] = useState<string | null>(null);
+
+  /**
+   * Offline region download for the current destination.
+   *
+   * A silent auto-download already ran after routing, but it reported nothing —
+   * no progress, no confirmation, and its errors were swallowed — so there was
+   * no way to know whether an area was actually available offline. It also
+   * only triggered once a route existed, which is too late: choosing a
+   * destination is the moment you know where you are going.
+   */
+  const [offlineState, setOfflineState] = useState<{
+    status: "idle" | "downloading" | "ready" | "failed";
+    percent: number;
+    name: string | null;
+  }>({ status: "idle", percent: 0, name: null });
+
+  const downloadedRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Cache map tiles around a point so the area works with no connection.
+   *
+   * `silent` is used for the automatic run: it still reports progress, but it
+   * does not raise an error toast if the download fails, because the user did
+   * not ask for it and a failed background cache is not something they need to
+   * act on. A manual press does surface failure.
+   */
+  const downloadArea = useCallback(
+    async (point: Coordinates, label: string, { silent = false } = {}) => {
+      const key = `${point.latitude.toFixed(3)},${point.longitude.toFixed(3)}`;
+      if (downloadedRef.current.has(key)) return;
+      if (networkStatus.isOffline()) {
+        if (!silent) toast.error("You are offline — connect to download this area.");
+        return;
+      }
+
+      downloadedRef.current.add(key);
+      setOfflineState({ status: "downloading", percent: 0, name: label });
+
+      // ~0.2 degrees is roughly a district: enough to navigate around the
+      // destination without pulling a province-sized tile set.
+      const half = 0.2;
+      const bounds = {
+        north: Math.min(85, point.latitude + half),
+        south: Math.max(-85, point.latitude - half),
+        east: Math.min(180, point.longitude + half),
+        west: Math.max(-180, point.longitude - half),
+      };
+
+      try {
+        const region = await offlineRegionService.download(
+          { name: label, bounds, minZoom: 10, maxZoom: 14 },
+          // onProgress hands back the whole region record, not a percentage —
+          // the tile counts on it are what the progress bar needs.
+          (region) =>
+            setOfflineState((current) => ({
+              ...current,
+              percent: region.tileCount
+                ? Math.round((region.downloadedTileCount / region.tileCount) * 100)
+                : current.percent,
+            })),
+        );
+
+        await offlineDb.savePlaces([
+          {
+            id: `region-${region.id}`,
+            packId: region.id,
+            name: label,
+            category: "Offline area",
+            latitude: point.latitude,
+            longitude: point.longitude,
+          },
+        ]);
+
+        setOfflineState({ status: "ready", percent: 100, name: label });
+        if (!silent) toast.success(`${label} is available offline.`);
+        notify("Area saved offline", `${label} can now be used without a connection.`);
+      } catch (error) {
+        // Allow a retry rather than permanently marking this point as done.
+        downloadedRef.current.delete(key);
+        setOfflineState({ status: "failed", percent: 0, name: label });
+        if (!silent) toast.error("Could not download this area. Please try again.");
+        if (process.env.NODE_ENV === "development") console.error("[offline]", error);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Start caching as soon as a destination is chosen, not after a route is
+   * calculated — by then the user may already be moving.
+   */
+  useEffect(() => {
+    if (!selectedDestination?.position) return;
+    void downloadArea(
+      selectedDestination.position,
+      selectedDestination.name || destinationQuery || "Destination",
+      { silent: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDestination?.id]);
 
   const [roadAlerts, setRoadAlerts] = useState<RoadAlert[]>([]);
   const [selectedAlert, setSelectedAlert] = useState<RoadAlert | null>(null);
@@ -493,34 +594,6 @@ const MapPage = () => {
 
       toast.success("Route ready.");
 
-      // Auto-download a "District" size region around the destination for offline use
-      const boundsAround = (lat: number, lng: number, halfSpan: number) => ({
-        north: Math.min(85, lat + halfSpan),
-        south: Math.max(-85, lat - halfSpan),
-        east: Math.min(180, lng + halfSpan),
-        west: Math.max(-180, lng - halfSpan),
-      });
-      // 0.2 degrees is roughly a District size (fast, lightweight download)
-      const bounds = boundsAround(destination.latitude, destination.longitude, 0.2); 
-      const regionName = destinationQuery || "Destination";
-      
-      offlineRegionService.download(
-        { name: regionName, bounds, minZoom: 10, maxZoom: 14 },
-        () => {} // No progress UI needed on MapPage
-      ).then(region => {
-        void offlineDb.savePlaces([
-          {
-            id: `region-${region.id}`,
-            packId: region.id,
-            name: regionName,
-            category: "Auto-cached Destination",
-            latitude: destination.latitude,
-            longitude: destination.longitude,
-          },
-        ]);
-      }).catch(err => {
-        if ((process.env.NODE_ENV === 'development')) console.error("[offline-auto]", err);
-      });
     } catch (error) {
       // Friendly message only; full error stays in the dev console.
       if ((process.env.NODE_ENV === 'development')) console.error("[route]", error);
@@ -874,6 +947,69 @@ const MapPage = () => {
                 className="h-5 w-5 accent-cyan-500"
               />
             </label>
+
+            {/* Offline availability for the chosen destination.
+                The automatic download used to run invisibly, so there was no
+                way to tell whether an area would work without a connection —
+                which is the one thing you need to know before losing signal. */}
+            {selectedDestination && (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2">
+                    <Download size={16} className="text-cyan-400" aria-hidden="true" />
+                    Offline area
+                  </span>
+
+                  {offlineState.status === "ready" ? (
+                    <span className="text-xs font-medium text-emerald-300">Saved</span>
+                  ) : offlineState.status === "downloading" ? (
+                    <span
+                      className="text-xs text-slate-400"
+                      style={{ fontVariantNumeric: "tabular-nums" }}
+                    >
+                      {offlineState.percent}%
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void downloadArea(
+                          selectedDestination.position,
+                          selectedDestination.name || destinationQuery || "Destination",
+                        )
+                      }
+                      className="nexus-button-secondary nexus-button-sm"
+                    >
+                      {offlineState.status === "failed" ? "Retry" : "Download"}
+                    </button>
+                  )}
+                </div>
+
+                {offlineState.status === "downloading" && (
+                  <div
+                    className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"
+                    role="progressbar"
+                    aria-label="Downloading offline area"
+                    aria-valuenow={offlineState.percent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-[width]"
+                      style={{ width: `${offlineState.percent}%` }}
+                    />
+                  </div>
+                )}
+
+                <p className="mt-2 text-xs text-slate-500">
+                  {offlineState.status === "ready"
+                    ? "Tiles around this destination work without a connection."
+                    : offlineState.status === "failed"
+                      ? "The download did not finish."
+                      : "Downloads automatically when you pick a destination."}
+                </p>
+              </div>
+            )}
 
             <button
               type="button"
