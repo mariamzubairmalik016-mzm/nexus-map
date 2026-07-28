@@ -127,19 +127,57 @@ export async function GET(req: NextRequest) {
      */
     const needle = query.trim().toLowerCase();
 
-    const relevance = (name: string | undefined) => {
-      const value = (name || "").trim().toLowerCase();
+    const needleTokens = needle.split(/\s+/).filter((t) => t.length > 1);
+
+    const relevance = (item: { name?: string; address?: string; city?: string }) => {
+      const value = (item.name || "").trim().toLowerCase();
       // Providers return qualified names like "Karachi, Sind", so compare the
       // leading segment too. Without this, "Karachi, Sind" scored the same as
       // "Karachi Engineers" and the nearer of the two won on distance — which
       // put a business in Amritsar above the city the user asked for.
       const head = value.split(",")[0].trim();
 
-      if (value === needle || head === needle) return 4;
-      if (head.startsWith(`${needle} `)) return 3;
-      if (value.startsWith(needle)) return 2;
-      if (value.includes(needle)) return 1;
-      return 0;
+      let score: number;
+      if (value === needle || head === needle) score = 4;
+      else if (head.startsWith(`${needle} `)) score = 3;
+      else if (value.startsWith(needle)) score = 2;
+      else if (value.includes(needle)) score = 1;
+      else score = 0;
+
+      /**
+       * Token coverage, for compound queries.
+       *
+       * "Block H North Nazimabad" matches no single field as a substring, so
+       * every one of the tests above scored it 0 and the result was noise —
+       * the top hit was a hookah bar. Counting how many of the typed words
+       * appear anywhere across name, address and city recovers these: the
+       * words are all present, just spread across fields.
+       *
+       * Capped below a whole relevance step so it refines the order without
+       * letting a scatter of common words outrank a real name match.
+       */
+      if (needleTokens.length > 1) {
+        const haystack = `${value} ${(item.address || "").toLowerCase()} ${(item.city || "").toLowerCase()}`;
+        const hits = needleTokens.filter((token) => haystack.includes(token)).length;
+        score += (hits / needleTokens.length) * 2.5;
+      }
+
+      /**
+       * A place that names its own administrative area is the notable one.
+       *
+       * Several places in Pakistan are called "Islamabad". They all match
+       * exactly, so the nearest won on distance and a village outside Karachi
+       * beat the capital. The capital reports its city as "Islamabad"; the
+       * village reports "Goth Bagh". Self-naming is a reliable stand-in for
+       * importance without needing population data.
+       */
+      const city = (item.city || "").trim().toLowerCase();
+      // Compare without diacritics — providers return both "Islamabad" and
+      // "Islāmābād" for the same place.
+      const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+      if (city && fold(city) === fold(head)) score += 0.75;
+
+      return score;
     };
 
     const distanceFromBias = (item: { position: { latitude: number; longitude: number } }) => {
@@ -151,9 +189,67 @@ export async function GET(req: NextRequest) {
       return dLat * dLat + dLon * dLon;
     };
 
-    const ranked = merged
-      .map((item, index) => ({ item, index, rel: relevance(item.name), dist: distanceFromBias(item) }))
-      .sort((a, b) => b.rel - a.rel || a.dist - b.dist || a.index - b.index)
+    /**
+     * Penalise far-away results, but by less than one relevance step.
+     *
+     * Generic queries were the problem: "petrol pump" matched a place literally
+     * named "Petrol pump" in Multan exactly, so it outranked the pump down the
+     * road. A full-step penalty fixes that but breaks the opposite case —
+     * searching "Karachi" from Lahore would then lose to "Karachi Engineers"
+     * just across the border. Keeping the penalty under 1 separates results
+     * *within* a relevance tier while leaving the 2-point gap between tiers
+     * intact, so both cases come out right.
+     */
+    const farPenalty = (item: { position: { latitude: number; longitude: number } }) => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 0;
+      const km = Math.sqrt(distanceFromBias(item)) * 111;
+      if (km > 600) return 1;
+      if (km > 200) return 0.5;
+      return 0;
+    };
+
+    const scored = merged.map((item, index) => ({
+      item,
+      index,
+      rel: relevance(item) - farPenalty(item),
+      dist: distanceFromBias(item),
+    }));
+
+    /**
+     * Category searches rank by distance; name searches rank by relevance.
+     *
+     * The two are indistinguishable to a scorer: "petrol pump" and "Karachi"
+     * are both just strings. But they want opposite things — the nearest pump
+     * versus *the* city, wherever it is. Tuning the distance penalty fixes one
+     * and breaks the other, so the intent has to be detected instead.
+     *
+     * The signal: how many places match the query *exactly*. A category term
+     * matches many ("petrol pump" is the literal name of pumps in Multan,
+     * Peshawar, Gujrat…), a place name matches one or two. Above the
+     * threshold, the query is a category and proximity is what matters.
+     */
+    const exact = merged.filter((item) => (item.name || "").trim().toLowerCase() === needle);
+
+    /**
+     * A settlement is never a category, however often the name repeats.
+     *
+     * Counting exact matches alone misfired on "Islamabad": Pakistan has
+     * several places by that name, so it crossed the threshold and got ranked
+     * by distance, surfacing a village near Karachi instead of the capital.
+     * Providers label settlements (`populated_place`, `city`, `Geography`),
+     * and nobody types a town name meaning "the nearest one of these".
+     */
+    const SETTLEMENT = /populated_place|geography|^city$|^town$|^village$|administrative|county|state/i;
+    const settlementMatches = exact.filter((item) => SETTLEMENT.test(item.category || "")).length;
+
+    const isCategoryQuery = exact.length >= 3 && settlementMatches < 2;
+
+    const ranked = scored
+      .sort((a, b) =>
+        isCategoryQuery
+          ? a.dist - b.dist || b.rel - a.rel || a.index - b.index
+          : b.rel - a.rel || a.dist - b.dist || a.index - b.index,
+      )
       .map((entry) => entry.item);
 
     /**
