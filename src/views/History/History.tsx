@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Clock3, LoaderCircle, MapPin, Navigation, Trash2 } from "lucide-react";
 
 import { offlineDb, type OfflineHistoryItem } from "../../services/offlineDb";
+import PageShell from "../../components/layouts/PageShell";
+import PageHeader from "../../components/layouts/PageHeader";
 
 const fmtDistance = (km?: number) => {
   if (km == null) return "";
@@ -34,62 +36,82 @@ const History = () => {
   };
 
   return (
-    <section className="min-h-[calc(100vh-80px)] px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <p className="text-sm uppercase tracking-[.25em] text-cyan-400">Travel activity</p>
-        <h1 className="mt-3 text-4xl font-bold">Route history</h1>
+    <PageShell>
+      <PageHeader
+        eyebrow="Travel activity"
+        title="Route history"
+        description={
+          items.length > 0
+            ? `${items.length} ${items.length === 1 ? "route" : "routes"} planned, kept on this device.`
+            : undefined
+        }
+      />
 
-        {loading && (
-          <div className="flex min-h-80 items-center justify-center">
-            <LoaderCircle size={44} className="animate-spin text-cyan-400" />
-          </div>
-        )}
+      {loading && (
+        <div className="flex min-h-80 items-center justify-center" role="status" aria-label="Loading route history">
+          <LoaderCircle size={44} className="animate-spin text-cyan-400" />
+        </div>
+      )}
 
-        {!loading && (
-          <div className="mt-8 space-y-4">
-            {items.map((item) => (
-              <article key={item.id} className="rounded-[26px] border border-white/10 bg-white/[.04] p-5">
+      {!loading && items.length > 0 && (
+        <ul className="mt-8 space-y-4">
+          {items.map((item) => (
+            <li key={item.id}>
+              <article className="nexus-card p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <MapPin className="text-emerald-400" size={17} />
-                      {item.startName}
-                      <Navigation className="text-red-400" size={17} />
-                      {item.destinationName}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-400">
-                      {item.distanceKm != null && <span>{fmtDistance(item.distanceKm)}</span>}
+                  <div className="min-w-0">
+                    {/* Origin and destination are a pair, so they read as one
+                        line with an explicit arrow rather than two icons the
+                        eye has to infer a direction from. */}
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
+                      <MapPin className="shrink-0 text-emerald-400" size={17} aria-hidden="true" />
+                      <span className="truncate">{item.startName}</span>
+                      <span aria-hidden="true" className="text-slate-600">
+                        &rarr;
+                      </span>
+                      <Navigation className="shrink-0 text-cyan-400" size={17} aria-hidden="true" />
+                      <span className="truncate">{item.destinationName}</span>
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400">
+                      {item.distanceKm != null && (
+                        <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtDistance(item.distanceKm)}</span>
+                      )}
                       {item.durationMinutes != null && (
-                        <span className="flex items-center gap-1">
-                          <Clock3 size={15} />
+                        <span className="flex items-center gap-1" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          <Clock3 size={15} aria-hidden="true" />
                           {fmtDuration(item.durationMinutes)}
                         </span>
                       )}
-                      <span className="text-slate-600">{new Date(item.createdAt).toLocaleDateString()}</span>
+                      <time dateTime={item.createdAt} className="text-slate-500">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </time>
                     </div>
                   </div>
                   <button
                     onClick={() => remove(item.id)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-red-400/10 px-4 py-3 text-red-300"
+                    className="nexus-button-danger-quiet nexus-button-sm sm:shrink-0"
+                    aria-label={`Delete route from ${item.startName} to ${item.destinationName}`}
                   >
-                    <Trash2 size={17} />
+                    <Trash2 size={17} aria-hidden="true" />
                     Delete
                   </button>
                 </div>
               </article>
-            ))}
-          </div>
-        )}
+            </li>
+          ))}
+        </ul>
+      )}
 
-        {!loading && items.length === 0 && (
-          <div className="mt-8 rounded-[28px] border border-dashed border-white/10 p-16 text-center">
-            <Navigation className="mx-auto text-slate-600" size={42} />
-            <p className="mt-4 text-2xl font-bold">No routes yet</p>
-            <p className="mt-2 text-slate-500">Plan a route on the map and it will be saved here — even offline.</p>
-          </div>
-        )}
-      </div>
-    </section>
+      {!loading && items.length === 0 && (
+        <div className="mt-8 rounded-[var(--r-xl)] border border-dashed border-white/10 p-16 text-center">
+          <Navigation className="mx-auto text-slate-600" size={42} aria-hidden="true" />
+          <p className="mt-4 font-display text-2xl font-bold">No routes yet</p>
+          <p className="mx-auto mt-2 max-w-md text-slate-400">
+            Plan a route on the map and it will be saved here — even offline.
+          </p>
+        </div>
+      )}
+    </PageShell>
   );
 };
 

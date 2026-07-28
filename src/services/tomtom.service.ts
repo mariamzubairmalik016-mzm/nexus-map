@@ -1,5 +1,13 @@
+import { routeViaOsrm, distanceMeters } from "./osrm.service";
 import { env } from "../config/env";
 import { HttpError } from "../utils/httpError";
+
+/**
+ * How far TomTom may move a route's start before we distrust it. Ordinary
+ * snapping to the nearest road is tens of metres; 800 m means the road network
+ * has a hole, not that the user was standing in a field.
+ */
+const SNAP_TOLERANCE_METERS = 800;
 
 const TOMTOM_BASE = "https://api.tomtom.com";
 
@@ -33,9 +41,14 @@ export const searchTomTom = async (
   });
 
   if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    // lat/lon alone is a *soft* bias: nearby results rank higher, distant ones
+    // still appear. Adding `radius` turned it into a hard 100 km cut-off, so a
+    // search for a place in another city returned nothing useful — and when
+    // the bias point was the default map centre, that 100 km circle covered
+    // empty desert. Biasing without the cut-off keeps local results first
+    // while leaving the rest of the world reachable.
     params.set("lat", String(lat));
     params.set("lon", String(lon));
-    params.set("radius", "100000");
   }
 
   const url =
@@ -90,18 +103,27 @@ export const calculateTomTomRoutes = async (input: {
   start: { latitude: number; longitude: number };
   destination: { latitude: number; longitude: number };
   travelMode: string;
+  routeType?: string;
   avoidTolls: boolean;
+  avoidFerries?: boolean;
   alternatives: number;
 }) => {
   const routePoints =
     `${input.start.latitude},${input.start.longitude}:` +
     `${input.destination.latitude},${input.destination.longitude}`;
 
+  // `routeType` and `avoidFerries` arrive from the map's own controls but were
+  // previously dropped here — routeType was pinned to "fastest", so the
+  // Fastest/Shortest buttons and the Avoid-ferries switch changed nothing.
+  // Verified before the fix: both settings returned an identical 285,377 m
+  // route for Lahore → Islamabad.
+  const routeType = input.routeType === "shortest" ? "shortest" : "fastest";
+
   const params = new URLSearchParams({
     key: env.TOMTOM_API_KEY,
     traffic: "true",
     travelMode: input.travelMode,
-    routeType: "fastest",
+    routeType,
     instructionsType: "text",
     language: "en-GB",
     computeTravelTimeFor: "all",
@@ -111,9 +133,10 @@ export const calculateTomTomRoutes = async (input: {
     ),
   });
 
-  if (input.avoidTolls) {
-    params.set("avoid", "tollRoads");
-  }
+  // `append`, not `set`: TomTom takes a repeated `avoid` parameter, and `set`
+  // meant a second exclusion would have overwritten the first.
+  if (input.avoidTolls) params.append("avoid", "tollRoads");
+  if (input.avoidFerries) params.append("avoid", "ferries");
 
   const url =
     `${TOMTOM_BASE}/routing/1/calculateRoute/` +
@@ -151,7 +174,7 @@ export const calculateTomTomRoutes = async (input: {
   try {
     const data = await fetchTomTom<RouteResponse>(url);
 
-    return data.routes.map((route, routeIndex) => ({
+    const mapped = data.routes.map((route, routeIndex) => ({
       id: `route-${routeIndex}-${route.summary.lengthInMeters}`,
       summary: {
         lengthMeters: route.summary.lengthInMeters,
@@ -178,6 +201,50 @@ export const calculateTomTomRoutes = async (input: {
           },
         })) ?? [],
     }));
+
+    /**
+     * Reject a route that does not begin where the caller asked.
+     *
+     * TomTom snaps the start to the nearest road it knows about. Where its
+     * network is sparse that can be kilometres: from North Nazimabad in
+     * Karachi it snapped 2.3 km into a different town, so the route looked
+     * like it began somewhere the user had never been. OSRM, on the OSM road
+     * graph, snapped the same point to 2 m.
+     *
+     * So: if TomTom's start is implausibly far, ask OSRM and prefer whichever
+     * actually starts near the user. Traffic-aware ETA is worth less than
+     * starting in the right place.
+     */
+    const firstPoint = mapped[0]?.coordinates?.[0];
+    if (firstPoint) {
+      const snap = distanceMeters(input.start, {
+        latitude: firstPoint[0],
+        longitude: firstPoint[1],
+      });
+
+      if (snap > SNAP_TOLERANCE_METERS) {
+        try {
+          const osrmRoutes = await routeViaOsrm(input);
+          const osrmFirst = osrmRoutes[0]?.coordinates?.[0];
+          const osrmSnap = osrmFirst
+            ? distanceMeters(input.start, { latitude: osrmFirst[0], longitude: osrmFirst[1] })
+            : Number.POSITIVE_INFINITY;
+
+          if (osrmSnap < snap) {
+            if (process.env.NODE_ENV === "development") {
+              console.warn(
+                `[routing] TomTom start snapped ${Math.round(snap)} m away; using OSRM (${Math.round(osrmSnap)} m).`,
+              );
+            }
+            return osrmRoutes;
+          }
+        } catch {
+          // OSRM unreachable — TomTom's imperfect route beats no route.
+        }
+      }
+    }
+
+    return mapped;
   } catch (error) {
     if ((process.env.NODE_ENV === 'development')) {
       console.warn("TomTom routing failed, falling back to OSRM...", error);

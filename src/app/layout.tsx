@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, Marcellus } from "next/font/google";
 
 import "../index.css";
@@ -16,8 +16,24 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space
 const marcellus = Marcellus({ weight: "400", subsets: ["latin"], variable: "--font-marcellus" });
 
 export const metadata: Metadata = {
-  title: "Nexus Map",
-  description: "Next-generation maps and routing",
+  title: {
+    default: "Nexus Map — Intelligent worldwide navigation",
+    template: "%s · Nexus Map",
+  },
+  description:
+    "Explore the world with intelligent search, live GPS tracking, offline navigation and community-powered local knowledge.",
+  applicationName: "Nexus Map",
+  openGraph: {
+    title: "Nexus Map",
+    description: "Intelligent worldwide navigation with GPS, offline maps, AI planning and community knowledge.",
+    siteName: "Nexus Map",
+    type: "website",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#020617",
+  colorScheme: "dark",
 };
 
 import Navbar from "../components/layouts/Navbar";
@@ -32,12 +48,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${spaceGrotesk.variable} ${marcellus.variable} font-sans antialiased text-gray-900 bg-white dark:text-gray-100 dark:bg-black`}>
+      <body className={`${inter.variable} ${spaceGrotesk.variable} ${marcellus.variable} font-sans antialiased bg-[#020617] text-white`}>
         <Providers>
+          {/* Keyboard users can jump straight to content, past the 8-item nav. */}
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[2000] focus:rounded-xl focus:bg-cyan-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-950"
+          >
+            Skip to main content
+          </a>
           <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
             <CinematicBackground />
             <Navbar />
-            <main className="relative z-10 min-h-[calc(100vh-80px)] pt-20">
+            <main id="main" tabIndex={-1} className="relative z-10 min-h-[calc(100vh-80px)] pt-20 focus:outline-none">
               {children}
             </main>
             <div className="relative z-10">

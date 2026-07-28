@@ -1,87 +1,216 @@
-import { useState, type FormEvent } from "react";
-import { Mail, MapPin, Save, UserRound, type LucideIcon } from "lucide-react";
+"use client";
+
+import { useEffect, useState, type FormEvent } from "react";
+import { LoaderCircle, Mail, MapPin, Phone, Save, UserRound } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
 
+import PageShell from "../../components/layouts/PageShell";
+import PageHeader from "../../components/layouts/PageHeader";
+
+type ProfileData = {
+  fullName: string;
+  email: string;
+  city: string;
+  country: string;
+  phone: string;
+  bio: string;
+  role: string;
+};
+
+const EMPTY: ProfileData = {
+  fullName: "",
+  email: "",
+  city: "",
+  country: "",
+  phone: "",
+  bio: "",
+  role: "user",
+};
+
+/**
+ * Profile editor.
+ *
+ * This page used to be entirely cosmetic: city and country were the hardcoded
+ * strings "Karachi" and "Pakistan", and saving was a 500 ms `setTimeout`
+ * followed by a success toast. Nothing was read from or written to the
+ * database. It now loads from /api/profile and saves with PATCH.
+ */
 const Profile = () => {
-  const { data: session } = useSession();
-  const user = session?.user;
-  const profile = { full_name: user?.name, city: "Karachi", country: "Pakistan", bio: "", role: "user" };
-  const [name, setName] = useState(profile?.full_name || "");
-  const [city, setCity] = useState(profile?.city || "Karachi");
-  const [country, setCountry] = useState(profile?.country || "Pakistan");
-  const [bio, setBio] = useState(profile?.bio || "");
+  const { data: session, update: updateSession } = useSession();
+  const [form, setForm] = useState<ProfileData>(EMPTY);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/profile")
+      .then((res) => res.json())
+      .then((payload) => {
+        if (cancelled) return;
+        if (payload?.success) setForm({ ...EMPTY, ...payload.data });
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const set = (key: keyof ProfileData) => (value: string) =>
+    setForm((current) => ({ ...current, [key]: value }));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await new Promise((r) => setTimeout(r, 500));
-    toast.success("Profile updated.");
+    setError(null);
+
+    if (form.fullName.trim().length < 2) {
+      setError("Please enter your name.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.fullName.trim(),
+          city: form.city.trim(),
+          country: form.country.trim(),
+          phone: form.phone.trim(),
+          bio: form.bio.trim(),
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message || "Could not save your profile.");
+      }
+
+      // Refresh the session so the navbar shows the new name immediately.
+      await updateSession?.();
+      toast.success("Profile saved.");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Could not save your profile.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  return (
-    <section className="min-h-[calc(100vh-80px)] px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
-        <p className="nexus-eyebrow">Personal account</p>
-        <h1 className="text-hero-display mt-4 text-5xl">My Profile</h1>
+  const fieldClass =
+    "flex items-center gap-3 rounded-[var(--r-md)] border border-white/[0.08] bg-slate-950/60 px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 focus-within:border-cyan-400/30 focus-within:shadow-[0_0_0_4px_rgba(34,211,238,0.06)]";
 
+  const displayName = form.fullName || session?.user?.email?.split("@")[0] || "Explorer";
+
+  return (
+    <PageShell>
+      <PageHeader eyebrow="Personal account" title="My Profile" />
+
+      {loading ? (
+        <div className="mt-10 flex min-h-64 items-center justify-center" role="status" aria-label="Loading profile">
+          <LoaderCircle size={40} className="animate-spin text-cyan-400" />
+        </div>
+      ) : (
         <div className="mt-10 grid gap-8 lg:grid-cols-[300px_1fr]">
-          {/* Avatar card */}
           <aside className="nexus-card-elevated p-8 text-center">
             <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400/15 to-purple-600/10 text-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.08)]">
-              <UserRound size={58} />
+              <UserRound size={58} aria-hidden="true" />
             </div>
-            <h2 className="mt-6 text-2xl font-bold text-white">
-              {profile?.full_name || user?.email?.split("@")[0]}
-            </h2>
-            <p className="mt-2 truncate text-sm text-slate-400">{user?.email}</p>
+            <h2 className="mt-6 font-display text-2xl font-bold text-white">{displayName}</h2>
+            <p className="mt-2 truncate text-sm text-slate-400">{form.email || session?.user?.email}</p>
+            {form.role !== "user" && (
+              <span className="mt-4 inline-flex rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-xs font-semibold capitalize text-cyan-200">
+                {form.role}
+              </span>
+            )}
           </aside>
 
-          {/* Edit form */}
-          <form onSubmit={submit} className="nexus-card-elevated p-8">
+          <form onSubmit={submit} className="nexus-card-elevated p-6 sm:p-8" noValidate>
+            {error && (
+              <p
+                role="alert"
+                className="mb-5 rounded-[var(--r-md)] border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+              >
+                {error}
+              </p>
+            )}
+
             <div className="grid gap-5 md:grid-cols-2">
               {(
                 [
-                  { Icon: UserRound, value: name, setter: setName, label: "Full name" },
-                  { Icon: Mail, value: user?.email || "", setter: () => {}, label: "Email" },
-                  { Icon: MapPin, value: city, setter: setCity, label: "City" },
-                  { Icon: MapPin, value: country, setter: setCountry, label: "Country" },
-                ] as Array<{
-                  Icon: LucideIcon;
-                  value: string;
-                  setter: (v: string) => void;
-                  label: string;
-                }>
-              ).map(({ Icon, value, setter, label }) => (
-                <label key={label}>
+                  { key: "fullName", label: "Full name", Icon: UserRound, autoComplete: "name" },
+                  { key: "phone", label: "Phone", Icon: Phone, autoComplete: "tel" },
+                  { key: "city", label: "City", Icon: MapPin, autoComplete: "address-level2" },
+                  { key: "country", label: "Country", Icon: MapPin, autoComplete: "country-name" },
+                ] as const
+              ).map(({ key, label, Icon, autoComplete }) => (
+                <label key={key} className="block">
                   <span className="mb-2 block text-sm font-medium text-slate-300">{label}</span>
-                  <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-slate-950/60 px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 focus-within:border-cyan-400/30 focus-within:shadow-[0_0_0_4px_rgba(34,211,238,0.06)]">
-                    <Icon className="text-cyan-400" size={18} />
+                  <div className={fieldClass}>
+                    <Icon className="shrink-0 text-cyan-400" size={18} aria-hidden="true" />
                     <input
-                      value={value}
-                      disabled={label === "Email"}
-                      onChange={(e) => setter(e.target.value)}
+                      value={form[key]}
+                      onChange={(e) => set(key)(e.target.value)}
+                      autoComplete={autoComplete}
                       className="min-w-0 flex-1 bg-transparent py-4 outline-none"
                     />
                   </div>
                 </label>
               ))}
+
+              {/* Email is the account identity and changing it would orphan the
+                  session, so it is shown read-only rather than as a disabled
+                  input that looks editable. */}
+              <label className="block md:col-span-2">
+                <span className="mb-2 block text-sm font-medium text-slate-300">Email</span>
+                <div className={`${fieldClass} opacity-70`}>
+                  <Mail className="shrink-0 text-cyan-400" size={18} aria-hidden="true" />
+                  <input
+                    value={form.email || session?.user?.email || ""}
+                    readOnly
+                    aria-describedby="email-note"
+                    className="min-w-0 flex-1 cursor-not-allowed bg-transparent py-4 outline-none"
+                  />
+                </div>
+                <span id="email-note" className="mt-2 block text-xs text-slate-500">
+                  Your email identifies the account and cannot be changed here.
+                </span>
+              </label>
             </div>
 
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={5}
-              className="nexus-input mt-5"
-            />
+            <label className="mt-5 block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">About you</span>
+              <textarea
+                value={form.bio}
+                onChange={(e) => set("bio")(e.target.value)}
+                rows={5}
+                maxLength={500}
+                placeholder="Where you like to travel, what you are planning next…"
+                className="nexus-input"
+              />
+              <span className="mt-2 block text-xs text-slate-500" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {form.bio.length}/500
+              </span>
+            </label>
 
-            <button className="nexus-button-primary mt-6 w-full py-4">
-              <Save size={18} />
-              Save Profile
+            <button disabled={saving} className="nexus-button-primary nexus-button-block mt-6 py-4">
+              {saving ? (
+                <LoaderCircle className="animate-spin" size={18} aria-hidden="true" />
+              ) : (
+                <Save size={18} aria-hidden="true" />
+              )}
+              {saving ? "Saving…" : "Save Profile"}
             </button>
           </form>
         </div>
-      </div>
-    </section>
+      )}
+    </PageShell>
   );
 };
 

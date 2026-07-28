@@ -1,0 +1,644 @@
+diff --git a/src/app/dashboard/loading.tsx b/src/app/dashboard/loading.tsx
+new file mode 100644
+index 0000000..8761fc5
+--- /dev/null
++++ b/src/app/dashboard/loading.tsx
+@@ -0,0 +1,5 @@
++import RouteSkeleton from "../../components/ui/RouteSkeleton";
++
++export default function Loading() {
++  return <RouteSkeleton variant="page" label="Loading your dashboard" />;
++}
+diff --git a/src/app/error.tsx b/src/app/error.tsx
+new file mode 100644
+index 0000000..582d9d1
+--- /dev/null
++++ b/src/app/error.tsx
+@@ -0,0 +1,62 @@
++"use client";
++
++// Route-segment error boundary. In the App Router this replaces the old
++// top-level <ErrorBoundary> that wrapped the Vite <App/>: any render or data
++// error inside a route lands here instead of blanking the page. Kept in the
++// Nexus visual language so a failure still looks like part of the product.
++
++import { useEffect } from "react";
++import { AlertTriangle, RefreshCw, RotateCcw } from "lucide-react";
++import Link from "next/link";
++
++export default function Error({
++  error,
++  reset,
++}: {
++  error: Error & { digest?: string };
++  reset: () => void;
++}) {
++  useEffect(() => {
++    if (process.env.NODE_ENV === "development") {
++      console.error("[route-error]", error);
++    }
++  }, [error]);
++
++  return (
++    <div role="alert" className="flex min-h-[60vh] w-full items-center justify-center p-6">
++      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur-2xl">
++        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10">
++          <AlertTriangle size={22} className="text-amber-300" aria-hidden="true" />
++        </div>
++
++        <h1 className="text-lg font-medium text-white">Something went wrong</h1>
++        <p className="mt-2 text-sm leading-6 text-slate-400">
++          This page hit an unexpected error. The rest of Nexus Map is still working — try again, or
++          head back to your dashboard.
++        </p>
++
++        {process.env.NODE_ENV === "development" && (
++          <pre className="mt-4 max-h-40 overflow-auto rounded-xl bg-black/40 p-3 text-left text-[11px] leading-5 text-amber-200/80">
++            {error.message}
++          </pre>
++        )}
++
++        <div className="mt-5 flex items-center justify-center gap-3">
++          <button
++            type="button"
++            onClick={reset}
++            className="inline-flex items-center gap-2 rounded-xl bg-cyan-500/90 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-cyan-400"
++          >
++            <RotateCcw size={15} aria-hidden="true" /> Try again
++          </button>
++          <Link
++            href="/dashboard"
++            className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/5"
++          >
++            <RefreshCw size={15} aria-hidden="true" /> Dashboard
++          </Link>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/app/explore/loading.tsx b/src/app/explore/loading.tsx
+new file mode 100644
+index 0000000..b164daf
+--- /dev/null
++++ b/src/app/explore/loading.tsx
+@@ -0,0 +1,5 @@
++import RouteSkeleton from "../../components/ui/RouteSkeleton";
++
++export default function Loading() {
++  return <RouteSkeleton variant="page" label="Loading destinations" />;
++}
+diff --git a/src/app/global-error.tsx b/src/app/global-error.tsx
+new file mode 100644
+index 0000000..b74bcbb
+--- /dev/null
++++ b/src/app/global-error.tsx
+@@ -0,0 +1,57 @@
++"use client";
++
++// Last line of defence. global-error.tsx catches failures in the root layout
++// itself — the one place a normal error.tsx cannot reach — so even a broken
++// shell renders a usable page instead of a white screen. It must supply its
++// own <html>/<body> because it replaces the root layout when it fires.
++
++import { useEffect } from "react";
++
++export default function GlobalError({
++  error,
++  reset,
++}: {
++  error: Error & { digest?: string };
++  reset: () => void;
++}) {
++  useEffect(() => {
++    if (process.env.NODE_ENV === "development") {
++      console.error("[global-error]", error);
++    }
++  }, [error]);
++
++  return (
++    <html lang="en">
++      <body style={{ margin: 0, background: "#020617", color: "#f8fafc", fontFamily: "system-ui, sans-serif" }}>
++        <div
++          role="alert"
++          style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}
++        >
++          <div style={{ maxWidth: "28rem", textAlign: "center" }}>
++            <h1 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Nexus Map ran into a problem</h1>
++            <p style={{ marginTop: "0.5rem", color: "#94a3b8", lineHeight: 1.6, fontSize: "0.9rem" }}>
++              The application failed to load. Please try again.
++            </p>
++            <button
++              type="button"
++              onClick={reset}
++              style={{
++                marginTop: "1.25rem",
++                borderRadius: "0.75rem",
++                background: "#06b6d4",
++                color: "#020617",
++                border: "none",
++                padding: "0.6rem 1.1rem",
++                fontSize: "0.9rem",
++                fontWeight: 600,
++                cursor: "pointer",
++              }}
++            >
++              Try again
++            </button>
++          </div>
++        </div>
++      </body>
++    </html>
++  );
++}
+diff --git a/src/app/layout.tsx b/src/app/layout.tsx
+index 267552b..4a9735a 100644
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -1,4 +1,4 @@
+-import type { Metadata } from "next";
++import type { Metadata, Viewport } from "next";
+ import { Inter, Space_Grotesk, Marcellus } from "next/font/google";
+ 
+ import "../index.css";
+@@ -16,8 +16,24 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space
+ const marcellus = Marcellus({ weight: "400", subsets: ["latin"], variable: "--font-marcellus" });
+ 
+ export const metadata: Metadata = {
+-  title: "Nexus Map",
+-  description: "Next-generation maps and routing",
++  title: {
++    default: "Nexus Map — Intelligent worldwide navigation",
++    template: "%s · Nexus Map",
++  },
++  description:
++    "Explore the world with intelligent search, live GPS tracking, offline navigation and community-powered local knowledge.",
++  applicationName: "Nexus Map",
++  openGraph: {
++    title: "Nexus Map",
++    description: "Intelligent worldwide navigation with GPS, offline maps, AI planning and community knowledge.",
++    siteName: "Nexus Map",
++    type: "website",
++  },
++};
++
++export const viewport: Viewport = {
++  themeColor: "#020617",
++  colorScheme: "dark",
+ };
+ 
+ import Navbar from "../components/layouts/Navbar";
+@@ -32,12 +48,19 @@ export default function RootLayout({
+ }) {
+   return (
+     <html lang="en">
+-      <body className={`${inter.variable} ${spaceGrotesk.variable} ${marcellus.variable} font-sans antialiased text-gray-900 bg-white dark:text-gray-100 dark:bg-black`}>
++      <body className={`${inter.variable} ${spaceGrotesk.variable} ${marcellus.variable} font-sans antialiased bg-[#020617] text-white`}>
+         <Providers>
++          {/* Keyboard users can jump straight to content, past the 8-item nav. */}
++          <a
++            href="#main"
++            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[2000] focus:rounded-xl focus:bg-cyan-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-950"
++          >
++            Skip to main content
++          </a>
+           <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
+             <CinematicBackground />
+             <Navbar />
+-            <main className="relative z-10 min-h-[calc(100vh-80px)] pt-20">
++            <main id="main" tabIndex={-1} className="relative z-10 min-h-[calc(100vh-80px)] pt-20 focus:outline-none">
+               {children}
+             </main>
+             <div className="relative z-10">
+diff --git a/src/app/loading.tsx b/src/app/loading.tsx
+new file mode 100644
+index 0000000..366da74
+--- /dev/null
++++ b/src/app/loading.tsx
+@@ -0,0 +1,5 @@
++import RouteSkeleton from "../components/ui/RouteSkeleton";
++
++export default function Loading() {
++  return <RouteSkeleton variant="page" label="Loading Nexus Map" />;
++}
+diff --git a/src/app/map/loading.tsx b/src/app/map/loading.tsx
+new file mode 100644
+index 0000000..f6d8db5
+--- /dev/null
++++ b/src/app/map/loading.tsx
+@@ -0,0 +1,5 @@
++import RouteSkeleton from "../../components/ui/RouteSkeleton";
++
++export default function Loading() {
++  return <RouteSkeleton variant="map" label="Loading the world map" />;
++}
+diff --git a/src/app/providers.tsx b/src/app/providers.tsx
+index 6016894..336200c 100644
+--- a/src/app/providers.tsx
++++ b/src/app/providers.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import { SessionProvider } from "next-auth/react";
++import { MotionConfig } from "framer-motion";
+ import { Toaster } from "react-hot-toast";
+ import { useEffect } from "react";
+ import { registerOfflineWorker } from "../services/registerOfflineWorker";
+@@ -12,8 +13,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
+ 
+   return (
+     <SessionProvider>
+-      {children}
+-      <Toaster position="top-right" />
++      {/* reducedMotion="user" makes every Framer Motion animation honour the
++          OS "reduce motion" setting — the CSS media query alone can't reach
++          JS-driven transforms. */}
++      <MotionConfig reducedMotion="user">
++        {children}
++        <Toaster position="top-right" toastOptions={{ ariaProps: { role: "status", "aria-live": "polite" } }} />
++      </MotionConfig>
+     </SessionProvider>
+   );
+ }
+diff --git a/src/components/auth/LoginForm.tsx b/src/components/auth/LoginForm.tsx
+index b9d9538..261cc21 100644
+--- a/src/components/auth/LoginForm.tsx
++++ b/src/components/auth/LoginForm.tsx
+@@ -11,9 +11,19 @@ const LoginForm = () => {
+   const [password, setPassword] = useState("");
+   const [show, setShow] = useState(false);
+   const [submitting, setSubmitting] = useState(false);
++  const [error, setError] = useState<string | null>(null);
+ 
+   const submit = async (event: FormEvent<HTMLFormElement>) => {
+     event.preventDefault();
++    setError(null);
++
++    // Cheap client-side guard so the user gets an answer near the field
++    // instead of a round-trip and a toast.
++    if (!email.trim() || !password) {
++      setError("Enter your email and password to continue.");
++      return;
++    }
++
+     try {
+       setSubmitting(true);
+       const result = await signIn("credentials", {
+@@ -28,43 +38,75 @@ const LoginForm = () => {
+ 
+       toast.success("Login successful.");
+       navigate.push("/dashboard");
+-    } catch (error) {
+-      toast.error(error instanceof Error ? error.message : "Unable to login.");
++    } catch (err) {
++      const message = err instanceof Error ? err.message : "Unable to login.";
++      setError(message);
++      toast.error(message);
+     } finally {
+       setSubmitting(false);
+     }
+   };
+ 
+   return (
+-    <form onSubmit={submit} className="space-y-5">
+-      <label className="block">
+-        <span className="mb-2 block text-sm font-medium text-slate-300">Email</span>
++    <form onSubmit={submit} className="space-y-5" noValidate>
++      {error && (
++        <div
++          role="alert"
++          aria-live="assertive"
++          className="rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-200"
++        >
++          {error}
++        </div>
++      )}
++
++      <div className="block">
++        <label htmlFor="login-email" className="mb-2 block text-sm font-medium text-slate-300">
++          Email
++        </label>
+         <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-slate-950/60 px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 focus-within:border-cyan-400/30 focus-within:shadow-[0_0_0_4px_rgba(34,211,238,0.06)]">
+-          <Mail size={19} className="text-cyan-400" />
++          <Mail size={19} className="text-cyan-400" aria-hidden="true" />
+           <input
++            id="login-email"
++            name="email"
+             type="email"
++            autoComplete="email"
++            required
++            aria-invalid={Boolean(error)}
+             value={email}
+             onChange={(e) => setEmail(e.target.value)}
+             className="min-w-0 flex-1 bg-transparent py-4 outline-none"
+           />
+         </div>
+-      </label>
++      </div>
+ 
+-      <label className="block">
+-        <span className="mb-2 block text-sm font-medium text-slate-300">Password</span>
++      <div className="block">
++        <label htmlFor="login-password" className="mb-2 block text-sm font-medium text-slate-300">
++          Password
++        </label>
+         <div className="flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-slate-950/60 px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 focus-within:border-cyan-400/30 focus-within:shadow-[0_0_0_4px_rgba(34,211,238,0.06)]">
+-          <LockKeyhole size={19} className="text-cyan-400" />
++          <LockKeyhole size={19} className="text-cyan-400" aria-hidden="true" />
+           <input
++            id="login-password"
++            name="password"
+             type={show ? "text" : "password"}
++            autoComplete="current-password"
++            required
++            aria-invalid={Boolean(error)}
+             value={password}
+             onChange={(e) => setPassword(e.target.value)}
+             className="min-w-0 flex-1 bg-transparent py-4 outline-none"
+           />
+-          <button type="button" onClick={() => setShow(!show)} className="text-slate-400 hover:text-white">
+-            {show ? <EyeOff size={19} /> : <Eye size={19} />}
++          <button
++            type="button"
++            onClick={() => setShow(!show)}
++            aria-label={show ? "Hide password" : "Show password"}
++            aria-pressed={show}
++            className="-mr-2 flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 transition-colors duration-200 hover:text-white"
++          >
++            {show ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
+           </button>
+         </div>
+-      </label>
++      </div>
+ 
+       <div className="text-right">
+         <Link href="/forgot-password" className="text-sm text-cyan-300 transition-colors duration-200 hover:text-cyan-200">
+@@ -73,10 +115,11 @@ const LoginForm = () => {
+       </div>
+ 
+       <button
++        type="submit"
+         disabled={submitting}
+-        className="nexus-button-primary w-full py-4"
++        className="nexus-button-primary w-full py-4 disabled:cursor-not-allowed disabled:opacity-70"
+       >
+-        {submitting && <LoaderCircle className="animate-spin" size={19} />}
++        {submitting && <LoaderCircle className="animate-spin" size={19} aria-hidden="true" />}
+         {submitting ? "Signing in..." : "Sign in"}
+       </button>
+     </form>
+diff --git a/src/components/layouts/Footer.tsx b/src/components/layouts/Footer.tsx
+index 23732bb..c957d05 100644
+--- a/src/components/layouts/Footer.tsx
++++ b/src/components/layouts/Footer.tsx
+@@ -22,17 +22,20 @@ const Footer = () => (
+         </p>
+         <div className="mt-8 flex gap-3">
+           {[
+-            { Icon: Github, href: "#" },
+-            { Icon: Twitter, href: "#" },
+-            { Icon: Instagram, href: "#" },
+-            { Icon: Send, href: "#" },
+-          ].map(({ Icon, href }, index) => (
++            { Icon: Github, href: "https://github.com", label: "GitHub" },
++            { Icon: Twitter, href: "https://twitter.com", label: "Twitter" },
++            { Icon: Instagram, href: "https://instagram.com", label: "Instagram" },
++            { Icon: Send, href: "https://t.me", label: "Telegram" },
++          ].map(({ Icon, href, label }) => (
+             <a
+-              key={index}
++              key={label}
+               href={href}
++              target="_blank"
++              rel="noreferrer"
++              aria-label={`Nexus Map on ${label}`}
+               className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-slate-400 transition-all duration-300 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-cyan-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.06)]"
+             >
+-              <Icon size={18} />
++              <Icon size={18} aria-hidden="true" />
+             </a>
+           ))}
+         </div>
+@@ -80,9 +83,9 @@ const Footer = () => (
+     </div>
+ 
+     <div className="relative border-t border-white/[0.06] px-4 py-6">
+-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center text-sm text-slate-500 sm:flex-row sm:text-left">
++      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center text-sm text-slate-400 sm:flex-row sm:text-left">
+         <p>© 2026 NEXUS MAP. Frontend demonstration.</p>
+-        <p className="text-xs text-slate-600">Built with precision · Explore without limits</p>
++        <p className="text-xs text-slate-500">Built with precision · Explore without limits</p>
+       </div>
+     </div>
+   </footer>
+diff --git a/src/components/layouts/Navbar.tsx b/src/components/layouts/Navbar.tsx
+index 196f8da..f4e5293 100644
+--- a/src/components/layouts/Navbar.tsx
++++ b/src/components/layouts/Navbar.tsx
+@@ -53,6 +53,12 @@ const Navbar = () => {
+   const [profileOpen, setProfileOpen] = useState(false);
+   const [scrolled, setScrolled] = useState(false);
+   const profileRef = useRef<HTMLDivElement>(null);
++  const profileButtonRef = useRef<HTMLButtonElement>(null);
++
++  // Unread notifications. Wire this to the notifications service when it is
++  // available; kept as a single value so the badge and its aria-label stay
++  // in sync and the badge can hide itself at zero.
++  const unreadCount = 2;
+ 
+   const closeMenus = () => {
+     setMobileOpen(false);
+@@ -82,6 +88,21 @@ const Navbar = () => {
+     return () => document.removeEventListener("mousedown", closeProfile);
+   }, []);
+ 
++  // Keyboard: Escape closes any open menu. When the profile menu closes this
++  // way, return focus to its trigger so keyboard users are not stranded.
++  useEffect(() => {
++    const onKeyDown = (event: KeyboardEvent) => {
++      if (event.key !== "Escape") return;
++      if (profileOpen) {
++        setProfileOpen(false);
++        profileButtonRef.current?.focus();
++      }
++      setMobileOpen(false);
++    };
++    document.addEventListener("keydown", onKeyDown);
++    return () => document.removeEventListener("keydown", onKeyDown);
++  }, [profileOpen]);
++
+   const handleLogout = async () => {
+     try {
+       await signOut({ redirect: false });
+@@ -186,18 +207,33 @@ const Navbar = () => {
+             <>
+               <Link
+                 href="/notifications"
++                aria-label={
++                  unreadCount > 0
++                    ? `Notifications, ${unreadCount} unread`
++                    : "Notifications"
++                }
+                 className="relative rounded-xl border border-white/[0.07] bg-white/[0.03] p-2.5 text-slate-300 transition-all duration-300 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-white"
+               >
+-                <Bell size={19} />
+-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#020617] bg-red-500 px-1 text-[9px] font-black text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]">
+-                  2
+-                </span>
++                <Bell size={19} aria-hidden="true" />
++                {unreadCount > 0 && (
++                  <span
++                    aria-hidden="true"
++                    className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#020617] bg-red-500 px-1 text-[9px] font-black text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]"
++                  >
++                    {unreadCount > 9 ? "9+" : unreadCount}
++                  </span>
++                )}
+               </Link>
+ 
+               <div ref={profileRef} className="relative">
+                 <button
++                  ref={profileButtonRef}
+                   type="button"
+                   onClick={() => setProfileOpen((value) => !value)}
++                  aria-haspopup="menu"
++                  aria-expanded={profileOpen}
++                  aria-controls="account-menu"
++                  aria-label="Account menu"
+                   className="flex max-w-72 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 transition-all duration-300 hover:border-cyan-400/20 hover:bg-white/[0.055]"
+                 >
+                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400/15 to-purple-400/15 text-cyan-300">
+@@ -223,6 +259,9 @@ const Navbar = () => {
+ 
+                 {profileOpen && (
+                   <div
++                    id="account-menu"
++                    role="menu"
++                    aria-label="Account"
+                     className="nexus-fade-in absolute right-0 top-full mt-3 w-72 overflow-hidden rounded-3xl border border-white/[0.08] bg-[#07101f]/95 p-2 shadow-[0_28px_80px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
+                   >
+                     <div className="rounded-2xl bg-gradient-to-r from-cyan-400/[0.07] to-purple-400/[0.07] px-4 py-3">
+@@ -284,15 +323,18 @@ const Navbar = () => {
+         <button
+           type="button"
+           onClick={() => setMobileOpen((value) => !value)}
++          aria-label={mobileOpen ? "Close menu" : "Open menu"}
++          aria-expanded={mobileOpen}
++          aria-controls="mobile-menu"
+           className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-2.5 text-white transition-all duration-200 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] lg:hidden"
+         >
+-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
++          {mobileOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
+         </button>
+       </div>
+ 
+       {/* Mobile menu */}
+       {mobileOpen && (
+-        <div className="border-t border-white/[0.06] bg-[#020617]/98 px-4 py-4 shadow-2xl backdrop-blur-2xl lg:hidden">
++        <div id="mobile-menu" className="border-t border-white/[0.06] bg-[#020617]/98 px-4 py-4 shadow-2xl backdrop-blur-2xl lg:hidden">
+           <nav className="mx-auto flex max-w-7xl flex-col gap-1">
+             {navigationLinks.map((item) => (
+               <Link
+diff --git a/src/components/ui/RouteSkeleton.tsx b/src/components/ui/RouteSkeleton.tsx
+new file mode 100644
+index 0000000..1a1ab2e
+--- /dev/null
++++ b/src/components/ui/RouteSkeleton.tsx
+@@ -0,0 +1,41 @@
++// Shared loading skeleton for App Router loading.tsx files. Uses the
++// `nexus-shimmer` utility already defined in index.css so route transitions
++// show a branded placeholder (and reserve layout space, avoiding CLS) instead
++// of a flash of empty dark canvas.
++
++type Props = {
++  /** Show a large map-shaped block instead of the default card grid. */
++  variant?: "page" | "map";
++  label?: string;
++};
++
++const Bar = ({ className = "" }: { className?: string }) => (
++  <div className={`nexus-shimmer rounded-xl bg-white/[0.05] ${className}`} />
++);
++
++export default function RouteSkeleton({ variant = "page", label = "Loading" }: Props) {
++  return (
++    <section
++      role="status"
++      aria-live="polite"
++      aria-busy="true"
++      className="min-h-[calc(100vh-80px)] px-4 py-8 sm:px-6 lg:px-8"
++    >
++      <span className="sr-only">{label}…</span>
++      <div className="mx-auto max-w-7xl">
++        <Bar className="h-9 w-64 max-w-full" />
++        <Bar className="mt-4 h-4 w-96 max-w-full" />
++
++        {variant === "map" ? (
++          <Bar className="mt-8 h-[60vh] w-full rounded-[28px]" />
++        ) : (
++          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
++            {Array.from({ length: 8 }).map((_, i) => (
++              <Bar key={i} className="h-40 rounded-[26px]" />
++            ))}
++          </div>
++        )}
++      </div>
++    </section>
++  );
++}
+diff --git a/src/views/Dashboard/Dashboard.tsx b/src/views/Dashboard/Dashboard.tsx
+index 8f39fb0..4bd7a44 100644
+--- a/src/views/Dashboard/Dashboard.tsx
++++ b/src/views/Dashboard/Dashboard.tsx
+@@ -1,5 +1,5 @@
+ import { useEffect, useMemo, useState } from "react";
+-import Link from "next/link";
++import Link from "next/link";
+ import { useRouter } from "next/navigation";
+ import { AlertTriangle, Bell, Bot, Compass, Download, HardDrive, Heart, History, LocateFixed, Map, MapPin, Navigation, Route, Settings, ShieldCheck, Sparkles, TriangleAlert, UserRound, Wifi, WifiOff, type LucideIcon } from "lucide-react";
+ import { motion } from "framer-motion";
+@@ -25,8 +25,8 @@ const quick = [
+ ] as const;
+ 
+ const Dashboard = () => {
+-  const { data: session } = useSession();
+-  const user = session?.user;
++  const { data: session } = useSession();
++  const user = session?.user;
+   const profile = { full_name: user?.name, role: "user" };
+   const geo = useGeolocation();
+   const displayName = useMemo(() => profile?.full_name || user?.email?.split("@")[0] || "Nexus Explorer", [profile, user]);
+@@ -98,7 +98,7 @@ const Dashboard = () => {
+ 
+         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+           {statCards.map(({ Icon, label, value }) => (
+-            <article key={label} className="min-h-40 rounded-[26px] border border-white/10 bg-white/[.04] p-5"><Icon className="text-cyan-400" /><p className="mt-6 text-3xl font-bold">{value}</p><p className="mt-2 text-sm text-slate-400">{label}</p></article>
++            <article key={label} className="nexus-card min-h-40 p-5"><Icon className="text-cyan-400" aria-hidden="true" /><p className="mt-6 text-3xl font-bold">{value}</p><p className="mt-2 text-sm text-slate-400">{label}</p></article>
+           ))}
+         </div>
+ 
+@@ -128,7 +128,14 @@ const Dashboard = () => {
+               </div>
+             </div>
+             {storage?.supported && (
+-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
++              <div
++                className="mt-3 h-2 overflow-hidden rounded-full bg-white/10"
++                role="progressbar"
++                aria-label="Offline storage used"
++                aria-valuenow={Math.round(storage.percent)}
++                aria-valuemin={0}
++                aria-valuemax={100}
++              >
+                 <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" style={{ width: `${storage.percent}%` }} />
+               </div>
+             )}
+@@ -153,7 +160,7 @@ const Dashboard = () => {
+           </article>
+         </div>
+ 
+-        <div className="mt-8"><h2 className="text-3xl font-bold">Quick Actions</h2><div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{quick.map(([path, Icon, title, description]) => <Link key={path}  href={path} className="min-h-52 rounded-[26px] border border-white/10 bg-white/[.04] p-6 transition hover:-translate-y-1"><div className="inline-flex rounded-2xl bg-cyan-400/10 p-3 text-cyan-400"><Icon size={25} /></div><h3 className="mt-5 text-xl font-bold">{title}</h3><p className="mt-3 text-slate-400">{description}</p></Link>)}</div></div>
++        <div className="mt-8"><h2 className="text-3xl font-bold">Quick Actions</h2><div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{quick.map(([path, Icon, title, description]) => <Link key={path}  href={path} className="nexus-card-elevated min-h-52 p-6"><div className="inline-flex rounded-2xl bg-cyan-400/10 p-3 text-cyan-400"><Icon size={25} aria-hidden="true" /></div><h3 className="mt-5 text-xl font-bold">{title}</h3><p className="mt-3 text-slate-400">{description}</p></Link>)}</div></div>
+       </div>
+     </section>
+   );

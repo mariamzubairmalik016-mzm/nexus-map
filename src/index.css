@@ -29,6 +29,29 @@
   --font-display: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-hero: "Marcellus", "Cormorant Garamond", Georgia, serif;
+
+  /* === Radius scale ===
+     Six arbitrary radii were in use across the app — rounded-[20px], [24px],
+     [26px], [28px], [30px], [34px] — differences nobody can perceive. These
+     five steps replace them. Pick by element size, not by feel:
+     control → sm, card → lg, panel/section → xl, hero surface → 2xl. */
+  --r-sm: 0.75rem;   /* 12px — chips, badges, small controls   */
+  --r-md: 1rem;      /* 16px — buttons, inputs                 */
+  --r-lg: 1.5rem;    /* 24px — cards                           */
+  --r-xl: 1.75rem;   /* 28px — panels, elevated cards          */
+  --r-2xl: 2rem;     /* 32px — hero / cinematic surfaces       */
+
+  /* === Page rhythm ===
+     Single source of truth for the shell. Every view used to retype
+     `px-4 py-14 sm:px-6 lg:px-8` + `mx-auto max-w-7xl`, and they drifted
+     (Dashboard sat at py-8 while the rest sat at py-14), so vertical rhythm
+     broke as you navigated between them. */
+  --page-max: 80rem;         /* 1280px — matches the former max-w-7xl */
+  --page-gutter: 1rem;
+  --page-gutter-sm: 1.5rem;
+  --page-gutter-lg: 2rem;
+  --page-top: 3.5rem;
+  --page-bottom: 4rem;
 }
 
 * {
@@ -235,8 +258,31 @@ select option {
     radial-gradient(circle at 90% 30%, rgba(168, 85, 247, 0.055), transparent 30rem);
 }
 
+/* Vertical rhythm for a standard page. Kept separate from .nexus-container so
+   a full-bleed view (the map) can take the padding without the width clamp. */
+.nexus-page-body {
+  padding-block: var(--page-top) var(--page-bottom);
+  padding-inline: var(--page-gutter);
+}
+
+@media (min-width: 640px) {
+  .nexus-page-body {
+    padding-inline: var(--page-gutter-sm);
+  }
+}
+
+@media (min-width: 1024px) {
+  .nexus-page-body {
+    padding-inline: var(--page-gutter-lg);
+  }
+}
+
+/* Width clamp only — no padding, so it nests cleanly inside .nexus-page-body.
+   Previously 88rem here while every page used max-w-7xl (80rem); the token
+   settles that disagreement in favour of what the pages actually did. */
 .nexus-container {
-  width: min(100% - 2rem, 88rem);
+  width: 100%;
+  max-width: var(--page-max);
   margin-inline: auto;
 }
 
@@ -259,7 +305,7 @@ select option {
 /* Standard card */
 .nexus-card {
   border: 1px solid var(--nexus-border);
-  border-radius: 1.65rem;
+  border-radius: var(--r-xl);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
     rgba(15, 23, 42, 0.58);
@@ -279,7 +325,7 @@ select option {
 /* Premium deep card — more opacity, richer glass */
 .nexus-card-premium {
   border: 1px solid var(--nexus-border-strong);
-  border-radius: 1.75rem;
+  border-radius: var(--r-xl);
   background:
     linear-gradient(150deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
     rgba(8, 15, 30, 0.72);
@@ -295,7 +341,7 @@ select option {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--nexus-border);
-  border-radius: 1.65rem;
+  border-radius: var(--r-xl);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
     rgba(15, 23, 42, 0.58);
@@ -321,7 +367,7 @@ select option {
 /* Cinematic card — for hero / featured sections */
 .nexus-card-cinematic {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 2rem;
+  border-radius: var(--r-2xl);
   background:
     linear-gradient(135deg,
       rgba(34, 211, 238, 0.05),
@@ -342,7 +388,7 @@ select option {
 /* Floating card (gentle hover animation) */
 .nexus-card-float {
   border: 1px solid var(--nexus-border);
-  border-radius: 1.4rem;
+  border-radius: var(--r-lg);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
     rgba(2, 6, 23, 0.55);
@@ -598,8 +644,11 @@ h3,
   justify-content: center;
   gap: 0.55rem;
   border: none;
-  border-radius: 1rem;
+  border-radius: var(--r-md);
+  /* 0.9rem block padding puts a 20px-icon button at ~46px tall, clearing the
+     44x44 minimum touch target. Don't shrink below the --sm variant. */
   padding: 0.9rem 1.25rem;
+  min-height: 2.75rem;
   font-weight: 800;
   color: #020617;
   background: linear-gradient(135deg, #22d3ee, #3b82f6 50%, #a855f7);
@@ -632,8 +681,9 @@ h3,
   justify-content: center;
   gap: 0.55rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
+  border-radius: var(--r-md);
   padding: 0.9rem 1.25rem;
+  min-height: 2.75rem;
   font-weight: 700;
   color: #e2e8f0;
   background: rgba(255, 255, 255, 0.045);
@@ -646,6 +696,110 @@ h3,
   background: rgba(34, 211, 238, 0.07);
 }
 
+/* ---- Button size + state modifiers -------------------------------------
+   Compose with either button class: `nexus-button-primary nexus-button-sm`.
+   These were the gap that pushed 20 call sites into hand-rolling their own
+   `rounded-2xl bg-cyan-500 px-5 py-3` — there was no smaller size to reach
+   for, so every dense surface invented one. */
+
+.nexus-button-sm {
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  min-height: 2.5rem;   /* 40px — still a comfortable target in dense UI */
+  font-size: 0.8125rem;
+  border-radius: var(--r-sm);
+}
+
+.nexus-button-lg {
+  gap: 0.65rem;
+  padding: 1.05rem 1.75rem;
+  min-height: 3.25rem;
+  font-size: 1.0625rem;
+}
+
+/* Full-width in a stacked group — replaces one-off `w-full` plus a re-typed
+   padding pair. */
+.nexus-button-block {
+  width: 100%;
+}
+
+/* Disabled had no visual treatment at all: a submitting button looked
+   identical to a ready one, so people double-submitted. */
+.nexus-button-primary:disabled,
+.nexus-button-secondary:disabled,
+.nexus-button-primary[aria-disabled="true"],
+.nexus-button-secondary[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: saturate(0.6);
+  transform: none;
+  box-shadow: none;
+}
+
+.nexus-button-primary:disabled:hover,
+.nexus-button-secondary:disabled:hover {
+  transform: none;
+}
+
+/* ---- Destructive actions ------------------------------------------------
+   Red is semantic here, not the brand accent — it means "this removes or
+   escalates something", and it stays out of the cyan/purple palette so the
+   two never read as interchangeable.
+
+   Two weights, because the app genuinely needs both: `quiet` for a Remove
+   sitting next to a normal action (Favorites, History), solid for a
+   standalone destructive or emergency control (SOS, Clear all). */
+
+.nexus-button-danger,
+.nexus-button-danger-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border-radius: var(--r-md);
+  padding: 0.9rem 1.25rem;
+  min-height: 2.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexus-button-danger {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow:
+    0 14px 34px rgba(239, 68, 68, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.nexus-button-danger:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 18px 44px rgba(239, 68, 68, 0.32),
+    0 0 28px rgba(239, 68, 68, 0.16);
+}
+
+.nexus-button-danger-quiet {
+  border: 1px solid rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.09);
+}
+
+.nexus-button-danger-quiet:hover {
+  border-color: rgba(248, 113, 113, 0.34);
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.15);
+}
+
+.nexus-button-danger:disabled,
+.nexus-button-danger-quiet:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: saturate(0.6);
+  transform: none;
+  box-shadow: none;
+}
+
 /* Glossy button variant */
 .nexus-button-glossy {
   display: inline-flex;
@@ -653,7 +807,7 @@ h3,
   justify-content: center;
   gap: 0.55rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 1rem;
+  border-radius: var(--r-md);
   padding: 0.9rem 1.25rem;
   font-weight: 700;
   color: white;
@@ -682,7 +836,7 @@ h3,
 .nexus-input {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
+  border-radius: var(--r-md);
   padding: 0.95rem 1rem;
   color: white;
   background: rgba(2, 6, 23, 0.62);

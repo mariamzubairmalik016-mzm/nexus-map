@@ -179,17 +179,55 @@ export const searchPlaces = async (
     position: cat.position
   }));
 
-  // Merge, putting catalog matches first
+  /**
+   * Rank by how well each result matches what was typed.
+   *
+   * This previously did `[...catalogSuggestions, ...payload.data]` — the
+   * curated city list unconditionally first. Since the catalogue only holds
+   * cities, every search led with cities and pushed the provider's streets,
+   * addresses and POIs below the visible suggestions. Typing a street or a
+   * sector name looked like the app only knew cities.
+   *
+   * Cities still win when the query actually names one ("Lahore" -> the city),
+   * because an exact match outranks everything else. They no longer win just
+   * for being cities.
+   */
+  const needle = query.trim().toLowerCase();
+
+  const score = (item: SearchSuggestion): number => {
+    const name = (item.name || "").toLowerCase();
+    const address = (item.address || "").toLowerCase();
+
+    let value: number;
+    if (name === needle) value = 100;
+    else if (name.startsWith(needle)) value = 80;
+    else if (name.includes(needle)) value = 60;
+    else if (address.includes(needle)) value = 45;
+    else value = 25;
+
+    // Small nudge so a city ties ahead of an unrelated shop of the same name,
+    // without letting it jump a genuinely better street/address match.
+    if (item.provider === "catalog") value += 6;
+    return value;
+  };
+
   const mergedResults = [...catalogSuggestions, ...(payload.data ?? [])];
-  
+
   // Deduplicate by name/location
   const seen = new Set<string>();
-  const results = mergedResults.filter(item => {
+  const deduped = mergedResults.filter(item => {
     const key = `${item.name.toLowerCase()}|${item.position.latitude.toFixed(2)}|${item.position.longitude.toFixed(2)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+
+  // Stable sort: equal scores keep provider order, so TomTom's own relevance
+  // ranking still decides among results that match the query equally well.
+  const results = deduped
+    .map((item, index) => ({ item, index, value: score(item) }))
+    .sort((a, b) => b.value - a.value || a.index - b.index)
+    .map((entry) => entry.item);
 
   void cacheResults(query, results);
   return { results, offline: false };

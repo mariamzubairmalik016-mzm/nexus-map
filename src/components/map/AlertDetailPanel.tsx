@@ -30,7 +30,7 @@ const AlertDetailPanel = ({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 40 }}
       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto absolute right-4 top-4 z-[800] w-[min(360px,calc(100%-2rem))] rounded-[24px] border border-white/10 bg-slate-950/92 p-5 shadow-2xl backdrop-blur-2xl"
+      className="pointer-events-auto absolute right-4 top-4 z-[800] w-[min(360px,calc(100%-2rem))] rounded-[var(--r-lg)] border border-white/10 bg-slate-950/92 p-5 shadow-2xl backdrop-blur-2xl"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -90,7 +90,7 @@ const AlertDetailPanel = ({
       {onAvoid && (
         <button
           onClick={onAvoid}
-          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 py-2.5 text-xs font-semibold text-slate-950"
+          className="nexus-button-primary nexus-button-sm nexus-button-block mt-2"
         >
           <Navigation size={14} /> Recalculate avoiding this alert
         </button>

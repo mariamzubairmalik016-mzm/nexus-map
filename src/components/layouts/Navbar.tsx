@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { unreadCount as getUnreadCount, subscribe } from "../../services/notificationsService";
 import {
   Bell,
   Bot,
@@ -53,6 +54,19 @@ const Navbar = () => {
   const [profileOpen, setProfileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Real unread count, read from the notification store and kept live via its
+  // subscription (this fires for same-tab changes too, which the native
+  // `storage` event does not). Starts at 0 so server and first client render
+  // agree — reading localStorage during render would hydrate-mismatch.
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const sync = () => setUnreadCount(getUnreadCount());
+    sync();
+    return subscribe(sync);
+  }, []);
 
   const closeMenus = () => {
     setMobileOpen(false);
@@ -81,6 +95,21 @@ const Navbar = () => {
     document.addEventListener("mousedown", closeProfile);
     return () => document.removeEventListener("mousedown", closeProfile);
   }, []);
+
+  // Keyboard: Escape closes any open menu. When the profile menu closes this
+  // way, return focus to its trigger so keyboard users are not stranded.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (profileOpen) {
+        setProfileOpen(false);
+        profileButtonRef.current?.focus();
+      }
+      setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [profileOpen]);
 
   const handleLogout = async () => {
     try {
@@ -186,18 +215,33 @@ const Navbar = () => {
             <>
               <Link
                 href="/notifications"
+                aria-label={
+                  unreadCount > 0
+                    ? `Notifications, ${unreadCount} unread`
+                    : "Notifications"
+                }
                 className="relative rounded-xl border border-white/[0.07] bg-white/[0.03] p-2.5 text-slate-300 transition-all duration-300 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-white"
               >
-                <Bell size={19} />
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#020617] bg-red-500 px-1 text-[9px] font-black text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]">
-                  2
-                </span>
+                <Bell size={19} aria-hidden="true" />
+                {unreadCount > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#020617] bg-red-500 px-1 text-[9px] font-black text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </Link>
 
               <div ref={profileRef} className="relative">
                 <button
+                  ref={profileButtonRef}
                   type="button"
                   onClick={() => setProfileOpen((value) => !value)}
+                  aria-haspopup="menu"
+                  aria-expanded={profileOpen}
+                  aria-controls="account-menu"
+                  aria-label="Account menu"
                   className="flex max-w-72 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 transition-all duration-300 hover:border-cyan-400/20 hover:bg-white/[0.055]"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400/15 to-purple-400/15 text-cyan-300">
@@ -223,6 +267,9 @@ const Navbar = () => {
 
                 {profileOpen && (
                   <div
+                    id="account-menu"
+                    role="menu"
+                    aria-label="Account"
                     className="nexus-fade-in absolute right-0 top-full mt-3 w-72 overflow-hidden rounded-3xl border border-white/[0.08] bg-[#07101f]/95 p-2 shadow-[0_28px_80px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
                   >
                     <div className="rounded-2xl bg-gradient-to-r from-cyan-400/[0.07] to-purple-400/[0.07] px-4 py-3">
@@ -284,15 +331,18 @@ const Navbar = () => {
         <button
           type="button"
           onClick={() => setMobileOpen((value) => !value)}
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-menu"
           className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-2.5 text-white transition-all duration-200 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] lg:hidden"
         >
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
+          {mobileOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
         </button>
       </div>
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="border-t border-white/[0.06] bg-[#020617]/98 px-4 py-4 shadow-2xl backdrop-blur-2xl lg:hidden">
+        <div id="mobile-menu" className="border-t border-white/[0.06] bg-[#020617]/98 px-4 py-4 shadow-2xl backdrop-blur-2xl lg:hidden">
           <nav className="mx-auto flex max-w-7xl flex-col gap-1">
             {navigationLinks.map((item) => (
               <Link

@@ -5,11 +5,14 @@ import { db } from "../../../../db";
 import { communityTips } from "../../../../db/schema";
 import { eq } from "drizzle-orm";
 
-const SEED_TIPS = [
-  { id: "tip-1", userId: "seed", userName: "Ali Khan", title: "Best time to visit Hunza", content: "April to June and September to October offer the best weather. Spring brings amazing cherry blossoms!", category: "travel_tip", likes: 15, bookmarks: 8 },
-  { id: "tip-2", userId: "seed", userName: "Fatima Zaidi", title: "Road closure alert: Karakoram Highway", content: "There have been landslides near Raikot Bridge. Check NHA updates before traveling.", category: "road_report", likes: 28, bookmarks: 14 },
-  { id: "tip-3", userId: "seed", userName: "Usman Tariq", title: "Hidden gem: Hussaini Suspension Bridge", content: "One of the most dangerous bridges but absolutely thrilling! Local guides available.", category: "recommendation", likes: 20, bookmarks: 10 },
-];
+/**
+ * No seed fallback.
+ *
+ * This route used to return a hardcoded array when the table was empty, so a
+ * fresh deployment showed invented posts attributed to invented people
+ * ("Ali Khan", "Fatima Zaidi") as if they were real community activity. An
+ * empty table now returns an empty list and the UI shows a real empty state.
+ */
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,7 +28,7 @@ export async function GET(req: NextRequest) {
       // DB not available
     }
 
-    let results = [...SEED_TIPS];
+    let results: any[] = [];
     if (category && category !== "all") results = results.filter(t => t.category === category);
     results.sort((a, b) => b.likes - a.likes);
     return NextResponse.json({ success: true, data: results });

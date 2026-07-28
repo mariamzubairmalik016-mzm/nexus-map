@@ -101,8 +101,8 @@ const Community = () => {
   };
 
   return (
-    <section className="min-h-[calc(100vh-80px)] bg-[#020617] px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <section className="nexus-page nexus-page-body">
+      <div className="nexus-container">
         <p className="text-sm uppercase tracking-[0.24em] text-purple-400">
           Community intelligence
         </p>
@@ -111,7 +111,7 @@ const Community = () => {
         </h1>
 
         <div className="mt-8 grid gap-7 lg:grid-cols-[420px_1fr]">
-          <div className="self-start rounded-[28px] border border-white/10 bg-white/[0.04] p-6">
+          <div className="self-start rounded-[var(--r-xl)] border border-white/10 bg-white/[0.04] p-6">
             <div className="flex items-center gap-3">
               <PlusCircle className="text-cyan-400" />
               <h2 className="text-2xl font-bold">New Report</h2>
@@ -176,7 +176,7 @@ const Community = () => {
 
               <button
                 onClick={() => void submit()}
-                className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-purple-600 py-4 font-semibold"
+                className="nexus-button-primary nexus-button-block"
               >
                 Submit Report
               </button>
@@ -189,7 +189,7 @@ const Community = () => {
                 <LoaderCircle className="animate-spin text-cyan-400" size={44} />
               </div>
             ) : reports.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 p-14 text-center text-slate-500">
+              <div className="rounded-[var(--r-xl)] border border-dashed border-white/10 p-14 text-center text-slate-500">
                 No community reports yet.
               </div>
             ) : (
@@ -197,7 +197,7 @@ const Community = () => {
                 {reports.map((report) => (
                   <article
                     key={report.id}
-                    className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5"
+                    className="rounded-[var(--r-xl)] border border-white/10 bg-white/[0.04] p-5"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>

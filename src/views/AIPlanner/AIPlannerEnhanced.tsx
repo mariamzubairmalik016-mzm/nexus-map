@@ -151,8 +151,8 @@ const AIPlannerEnhanced = () => {
   }, [plan, budgetResult, travelMood]);
 
   return (
-    <section className="min-h-[calc(100vh-80px)] px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <section className="nexus-page nexus-page-body">
+      <div className="nexus-container">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 18 }}

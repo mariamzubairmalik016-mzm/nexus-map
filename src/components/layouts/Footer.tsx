@@ -22,17 +22,20 @@ const Footer = () => (
         </p>
         <div className="mt-8 flex gap-3">
           {[
-            { Icon: Github, href: "#" },
-            { Icon: Twitter, href: "#" },
-            { Icon: Instagram, href: "#" },
-            { Icon: Send, href: "#" },
-          ].map(({ Icon, href }, index) => (
+            { Icon: Github, href: "https://github.com", label: "GitHub" },
+            { Icon: Twitter, href: "https://twitter.com", label: "Twitter" },
+            { Icon: Instagram, href: "https://instagram.com", label: "Instagram" },
+            { Icon: Send, href: "https://t.me", label: "Telegram" },
+          ].map(({ Icon, href, label }) => (
             <a
-              key={index}
+              key={label}
               href={href}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Nexus Map on ${label}`}
               className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-slate-400 transition-all duration-300 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-cyan-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.06)]"
             >
-              <Icon size={18} />
+              <Icon size={18} aria-hidden="true" />
             </a>
           ))}
         </div>
@@ -80,9 +83,9 @@ const Footer = () => (
     </div>
 
     <div className="relative border-t border-white/[0.06] px-4 py-6">
-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center text-sm text-slate-500 sm:flex-row sm:text-left">
+      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center text-sm text-slate-400 sm:flex-row sm:text-left">
         <p>© 2026 NEXUS MAP. Frontend demonstration.</p>
-        <p className="text-xs text-slate-600">Built with precision · Explore without limits</p>
+        <p className="text-xs text-slate-500">Built with precision · Explore without limits</p>
       </div>
     </div>
   </footer>

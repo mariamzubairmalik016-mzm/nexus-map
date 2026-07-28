@@ -8,6 +8,7 @@ import {
   Clock3,
   Download,
   Hotel,
+  Info,
   LoaderCircle,
   MapPin,
   ShieldCheck,
@@ -124,8 +125,8 @@ const AIPlanner = () => {
   };
 
   return (
-    <section className="min-h-[calc(100vh-80px)] bg-[#020617] px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <section className="nexus-page nexus-page-body">
+      <div className="nexus-container">
         <div className="text-center">
           <p className="text-sm font-semibold uppercase tracking-[0.28em] text-purple-400">
             Intelligent travel planning
@@ -145,7 +146,7 @@ const AIPlanner = () => {
         </div>
 
         <div className="mt-12 grid gap-8 xl:grid-cols-[420px_1fr]">
-          <div className="self-start rounded-[30px] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-2xl xl:sticky xl:top-24">
+          <div className="self-start rounded-[var(--r-2xl)] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-2xl xl:sticky xl:top-24">
             <div className="flex items-center gap-3">
               <Bot className="text-cyan-400" />
               <h2 className="text-2xl font-bold">Create your journey</h2>
@@ -284,7 +285,7 @@ const AIPlanner = () => {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-6 sm:p-8">
+          <div className="rounded-[var(--r-2xl)] border border-white/10 bg-white/[0.04] p-6 sm:p-8">
             {!plan ? (
               <div className="flex min-h-[620px] flex-col items-center justify-center text-center">
                 <Sparkles size={54} className="text-purple-400" />
@@ -310,6 +311,39 @@ const AIPlanner = () => {
                       {plan.days}-day {plan.tripType.toLowerCase()} trip within{" "}
                       {plan.currency} {plan.budget.toLocaleString()}.
                     </p>
+
+                    {/* Where the places came from. Plans are not all sourced
+                        equally — some destinations have no POI coverage at all
+                        — and a template plan should not look researched. */}
+                    {plan.placeSource === "generic" ? (
+                      <p className="mt-3 inline-flex items-start gap-2 rounded-[var(--r-sm)] border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+                        <Info size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        <span>
+                          No place data is available for {plan.destination}, so this is a general template.
+                          Times, costs and structure are usable; the stops are not specific venues.
+                        </span>
+                      </p>
+                    ) : plan.placeSource ? (
+                      <p className="mt-3 inline-flex items-center gap-2 rounded-[var(--r-sm)] border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200">
+                        <Info size={14} className="shrink-0" aria-hidden="true" />
+                        <span>
+                          {plan.placeSource === "curated"
+                            ? "Stops are from the Nexus Map curated guide for this destination."
+                            : plan.placeSource === "mixed"
+                              ? "Stops combine the Nexus Map guide with live place data."
+                              : "Stops are real places from live search."}
+                        </span>
+                      </p>
+                    ) : null}
+
+                    {/* The feature is named "AI Trip Planner", so it should say
+                        when the model did not write anything. The plan is still
+                        real either way — only the wording differs. */}
+                    {plan.narrativeSource === "generated" && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Written by Nexus Map&apos;s planner. AI wording is unavailable right now.
+                      </p>
+                    )}
                   </div>
 
                   <button
@@ -362,7 +396,7 @@ const AIPlanner = () => {
                   {plan.itinerary.map((day) => (
                     <article
                       key={day.day}
-                      className="rounded-[26px] border border-white/10 bg-slate-950/35 p-5 sm:p-6"
+                      className="rounded-[var(--r-xl)] border border-white/10 bg-slate-950/35 p-5 sm:p-6"
                     >
                       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                         <div>
@@ -415,7 +449,7 @@ const AIPlanner = () => {
                 </div>
 
                 <div className="mt-7 grid gap-5 lg:grid-cols-2">
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-5">
+                  <div className="rounded-[var(--r-lg)] border border-white/10 bg-white/[0.025] p-5">
                     <div className="flex items-center gap-3">
                       <BedDouble className="text-purple-400" />
                       <h3 className="text-xl font-bold">Packing list</h3>
@@ -437,7 +471,7 @@ const AIPlanner = () => {
                     </div>
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-white/[0.025] p-5">
+                  <div className="rounded-[var(--r-lg)] border border-white/10 bg-white/[0.025] p-5">
                     <div className="flex items-center gap-3">
                       <ShieldCheck className="text-cyan-400" />
                       <h3 className="text-xl font-bold">Safety tips</h3>

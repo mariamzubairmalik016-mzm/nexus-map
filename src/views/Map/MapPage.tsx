@@ -38,9 +38,10 @@ import AlertDetailPanel from "../../components/map/AlertDetailPanel";
 import { useLiveNavigation } from "../../hooks/useLiveNavigation";
 import { useGeolocation, currentLocationSuggestion } from "../../hooks/useGeolocation";
 import { useInternetStatus } from "../../hooks/useInternetStatus";
-import { getInitialCenter } from "../../config/mapView";
+import { getSavedCenter } from "../../config/mapView";
 import type { RoadAlert } from "../../types/roadAlerts";
 import type { RouteType, SavedRoute, TravelMode } from "../../types/savedRoute";
+import { notify } from "../../services/notificationsService";
 
 const isValidCoord = (c: Coordinates | null): c is Coordinates =>
   !!c &&
@@ -142,6 +143,17 @@ const MapPage = () => {
     "Nexus AI: Select a route and ask about ETA, traffic, destination or road conditions.",
   ]);
 
+  /**
+   * The area the GPS fix actually landed in.
+   *
+   * A fix used to be shown only as "Current Location", which concealed how
+   * wrong it can be: a laptop has no GPS radio and positions by WiFi/IP, so a
+   * user in North Nazimabad was silently placed in Naya Nazimabad — 4.5 km
+   * away, a different town — and only found out when the route drew from
+   * there. Naming the place makes a bad fix obvious before routing.
+   */
+  const [gpsPlace, setGpsPlace] = useState<string | null>(null);
+
   const [roadAlerts, setRoadAlerts] = useState<RoadAlert[]>([]);
   const [selectedAlert, setSelectedAlert] = useState<RoadAlert | null>(null);
   const [alertBusy, setAlertBusy] = useState(false);
@@ -160,7 +172,15 @@ const MapPage = () => {
    * available on the very first render — waiting for the map to report bounds
    * would let early searches go out unbiased. No hardcoded city anywhere.
    */
-  const searchBias = geo.coordinates ?? live.current ?? mapCenter ?? getInitialCenter();
+  /**
+   * Only bias to a position we actually have evidence for: a GPS fix, the live
+   * tracking position, where the map is currently pointed, or a view the user
+   * previously left the map at. The configured default centre is deliberately
+   * NOT in this chain — see `getSavedCenter`. Falling back to it meant that,
+   * with location denied, every search was constrained to rural Balochistan
+   * and returned unrelated roads.
+   */
+  const searchBias = geo.coordinates ?? live.current ?? mapCenter ?? getSavedCenter();
 
   /**
    * Adopts a GPS fix as the starting point. Only overwrites the start when the
@@ -216,6 +236,31 @@ const MapPage = () => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Name whatever position we ended up with, so the start point is a place the
+   * user recognises rather than an opaque label. Re-runs whenever the fix
+   * moves. Failure is silent — a missing name is not worth an error.
+   */
+  useEffect(() => {
+    const fix = geo.coordinates;
+    if (!fix) {
+      setGpsPlace(null);
+      return;
+    }
+
+    let cancelled = false;
+    void fetch(`/api/navigation/reverse?lat=${fix.latitude}&lon=${fix.longitude}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled && payload?.data?.label) setGpsPlace(payload.data.label as string);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [geo.coordinates]);
 
   /**
    * If permission is granted later (the user flips it in site settings while
@@ -508,6 +553,7 @@ const MapPage = () => {
       });
       setSavedRoutes((current) => [saved, ...current]);
       toast.success("Route saved — it will open offline.");
+      notify("Route saved", `${saved.originName} → ${saved.destinationName} is available offline.`);
     } catch {
       toast.error("Could not save this route on this device.");
     }
@@ -691,6 +737,33 @@ const MapPage = () => {
                 <LocateFixed size={17} />
                 {geo.loading ? "Locating…" : "Use current GPS location"}
               </button>
+
+              {/* Where the fix actually landed, plus how much to trust it.
+                  Browser geolocation without a GPS radio can be kilometres out,
+                  and silently starting a route from the wrong neighbourhood is
+                  worse than saying the position is rough. */}
+              {geo.coordinates && selectedStart?.id === "current-location" && (
+                <div
+                  className={`rounded-xl border px-3 py-2 text-xs leading-5 ${
+                    (geo.coordinates.accuracy ?? 0) > 500
+                      ? "border-amber-400/25 bg-amber-500/10 text-amber-200"
+                      : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                  }`}
+                >
+                  <p className="flex items-center gap-1.5">
+                    <LocateFixed size={13} aria-hidden="true" />
+                    <span>Starting from {gpsPlace ?? "your current position"}</span>
+                  </p>
+                  {geo.coordinates.accuracy != null && (
+                    <p className="mt-1 opacity-80" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      Accurate to about {Math.round(geo.coordinates.accuracy)} m
+                      {geo.coordinates.accuracy > 500
+                        ? " — that is a rough fix. If this is the wrong area, type your start instead."
+                        : ""}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {geo.error && (
                 <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
@@ -955,7 +1028,7 @@ const MapPage = () => {
             )}
 
             {live.tracking && nextInstruction && (
-              <div className="mt-5 rounded-[24px] border border-blue-400/20 bg-blue-500/10 p-5">
+              <div className="mt-5 rounded-[var(--r-lg)] border border-blue-400/20 bg-blue-500/10 p-5">
                 <p className="text-xs uppercase tracking-[0.2em] text-blue-300">
                   Next direction
                 </p>

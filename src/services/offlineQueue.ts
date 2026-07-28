@@ -1,3 +1,4 @@
+import { notify } from "./notificationsService";
 import { offlineDb, type QueuedRequest } from "./offlineDb";
 import { savedPlacesService } from "./savedPlacesService";
 
@@ -74,6 +75,14 @@ export const flushQueue = async (): Promise<{ flushed: number; remaining: number
     }
   } finally {
     flushing = false;
+  }
+  // A sync that happened while the user was elsewhere is exactly the kind of
+  // thing the notification list is for.
+  if (flushed > 0) {
+    notify(
+      "Offline changes synced",
+      `${flushed} change${flushed === 1 ? "" : "s"} uploaded now that you are back online.`,
+    );
   }
   return { flushed, remaining: await pendingCount() };
 };

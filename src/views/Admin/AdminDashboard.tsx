@@ -44,8 +44,8 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <section className="min-h-[calc(100vh-80px)] bg-[#020617] px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+    <section className="nexus-page nexus-page-body">
+      <div className="nexus-container">
         <p className="text-sm uppercase tracking-[0.24em] text-cyan-400">
           Administration
         </p>
@@ -57,7 +57,7 @@ const AdminDashboard = () => {
           {cards.map(({ label, value, icon: Icon }) => (
             <article
               key={label}
-              className="rounded-[26px] border border-white/10 bg-white/[0.04] p-6"
+              className="rounded-[var(--r-xl)] border border-white/10 bg-white/[0.04] p-6"
             >
               <Icon className="text-cyan-400" />
               <p className="mt-5 text-4xl font-bold">{value}</p>
@@ -67,7 +67,7 @@ const AdminDashboard = () => {
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-6">
+          <div className="rounded-[var(--r-xl)] border border-white/10 bg-white/[0.04] p-6">
             <h2 className="text-2xl font-bold">Platform Activity</h2>
             <div className="mt-5 space-y-4">
               {[
@@ -86,7 +86,7 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-6">
+          <div className="rounded-[var(--r-xl)] border border-white/10 bg-white/[0.04] p-6">
             <h2 className="text-2xl font-bold">System Status</h2>
             <div className="mt-5 space-y-4">
               {[

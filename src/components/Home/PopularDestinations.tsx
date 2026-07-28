@@ -42,7 +42,7 @@ const PopularDestinations = () => {
         )}
 
         {!loading && items.length === 0 && (
-          <div className="mt-10 rounded-[28px] border border-dashed border-white/10 p-10 text-center text-slate-500">
+          <div className="mt-10 rounded-[var(--r-xl)] border border-dashed border-white/10 p-10 text-center text-slate-500">
             Run the geo catalog SQL and check Supabase environment
             variables.
           </div>
@@ -53,7 +53,7 @@ const PopularDestinations = () => {
             {items.map((place) => (
               <article
                 key={place.id}
-                className="group overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04]"
+                className="group overflow-hidden rounded-[var(--r-xl)] border border-white/10 bg-white/[0.04]"
               >
                 <div className="relative aspect-[16/10] overflow-hidden">
                   <DestinationImage

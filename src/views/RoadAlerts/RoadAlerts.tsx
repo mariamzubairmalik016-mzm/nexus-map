@@ -176,7 +176,7 @@ const RoadAlerts = () => {
   };
 
   return (
-    <section className="nexus-page px-4 py-14 sm:px-6 lg:px-8">
+    <section className="nexus-page nexus-page-body">
       <div className="nexus-container">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -351,7 +351,7 @@ const RoadAlerts = () => {
         )}
 
         {error && !loading && (
-          <div className="mt-8 rounded-[24px] border border-red-400/20 bg-red-400/10 p-8 text-center text-red-300">
+          <div className="mt-8 rounded-[var(--r-lg)] border border-red-400/20 bg-red-400/10 p-8 text-center text-red-300">
             <AlertTriangle className="mx-auto" size={32} />
             <p className="mt-3">{error}</p>
             <button onClick={() => void load()} className="nexus-button-secondary mx-auto mt-4 w-fit">
@@ -361,7 +361,7 @@ const RoadAlerts = () => {
         )}
 
         {!loading && !error && alerts.length === 0 && (
-          <div className="mt-8 rounded-[28px] border border-dashed border-white/10 p-16 text-center">
+          <div className="mt-8 rounded-[var(--r-xl)] border border-dashed border-white/10 p-16 text-center">
             <ShieldCheck className="mx-auto text-emerald-400/70" size={44} />
             <p className="mt-4 text-2xl font-bold">All clear</p>
             <p className="mt-2 text-slate-500">
