@@ -35,7 +35,7 @@ const BackendTest = () => {
   }, []);
 
   return (
-    <section className="flex min-h-[calc(100vh-80px)] items-center justify-center px-4">
+    <section className="flex min-h-[calc(100dvh-80px)] items-center justify-center px-4">
       <div className="w-full max-w-xl rounded-[var(--r-xl)] border border-white/10 bg-white/[0.04] p-8 text-center">
         <h1 className="text-3xl font-bold">
           Backend Connection Test

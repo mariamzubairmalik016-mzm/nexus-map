@@ -20,9 +20,14 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get("category");
 
     try {
-      let query = db.select().from(communityTips);
-      if (category && category !== "all") query = query.where(eq(communityTips.category, category));
-      const data = await query.orderBy(communityTips.createdAt);
+      // Drizzle's select builder returns a different type from .where(), so a
+      // reassigned `let` does not typecheck. Decide the condition first.
+      const where = category && category !== "all" ? eq(communityTips.category, category) : undefined;
+      const data = await db
+        .select()
+        .from(communityTips)
+        .where(where)
+        .orderBy(communityTips.createdAt);
       if (data.length > 0) return NextResponse.json({ success: true, data });
     } catch {
       // DB not available
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const userRecord = await db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.email, session.user.email!),
+      where: (users, { eq }) => eq(users.email, session.user!.email!),
     });
     if (!userRecord) return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
 

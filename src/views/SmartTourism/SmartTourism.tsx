@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import ReviewPanel from "../../components/tourism/ReviewPanel";
 import toast from "react-hot-toast";
 
 import { tourismDiscoveryService } from "../../services/tourismDiscoveryService";
@@ -386,10 +387,14 @@ const SmartTourism = () => {
                   <div className="p-5">
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="text-lg font-bold text-white">{poi.name}</h3>
-                      <div className="flex items-center gap-1 text-sm text-yellow-300 shrink-0">
-                        <Star size={14} fill="currentColor" />
-                        {poi.rating}
-                      </div>
+                      {/* Live places carry no rating, and printing a bare "0"
+                          reads as "rated zero" rather than "not yet rated". */}
+                      {poi.rating > 0 && (
+                        <div className="flex shrink-0 items-center gap-1 text-sm text-yellow-300">
+                          <Star size={14} fill="currentColor" aria-hidden="true" />
+                          {poi.rating}
+                        </div>
+                      )}
                     </div>
                     <p className="mt-2 text-sm text-slate-400 line-clamp-2">{poi.shortDescription || poi.description}</p>
                     <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
@@ -409,6 +414,15 @@ const SmartTourism = () => {
                 </motion.article>
               ))}
             </div>
+
+            {/* Reviews for whichever place is open. Selecting a card was
+                previously state with nothing attached to it — the click
+                toggled `selectedPoi` and nothing rendered. */}
+            {selectedPoi && (
+              <div className="mt-8">
+                <ReviewPanel placeId={selectedPoi.id} placeName={selectedPoi.name} />
+              </div>
+            )}
           </div>
         )}
 

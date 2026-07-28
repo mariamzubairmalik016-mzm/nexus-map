@@ -34,6 +34,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: "#020617",
   colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
+  // `viewportFit: cover` lets the page reach into the notch/home-indicator
+  // area on phones; the safe-area padding in index.css keeps content clear of
+  // it. Zoom is deliberately left enabled — disabling it locks out anyone who
+  // needs to magnify text.
+  viewportFit: "cover",
 };
 
 import Navbar from "../components/layouts/Navbar";
@@ -60,7 +67,7 @@ export default function RootLayout({
           <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
             <CinematicBackground />
             <Navbar />
-            <main id="main" tabIndex={-1} className="relative z-10 min-h-[calc(100vh-80px)] pt-20 focus:outline-none">
+            <main id="main" tabIndex={-1} className="relative z-10 min-h-[calc(100dvh-80px)] pt-20 focus:outline-none">
               {children}
             </main>
             <div className="relative z-10">

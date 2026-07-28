@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   // Get user id from session. Wait, NextAuth session doesn't include user id by default unless configured in callbacks.
   // We can look up the user by email, or we should update authOptions to include user.id.
   const userRecord = await db.query.users.findFirst({
-    where: (users, { eq }) => eq(users.email, session.user.email!),
+    where: (users, { eq }) => eq(users.email, session.user!.email!),
   });
   
   if (!userRecord) return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   }
 
   const userRecord = await db.query.users.findFirst({
-    where: (users, { eq }) => eq(users.email, session.user.email!),
+    where: (users, { eq }) => eq(users.email, session.user!.email!),
   });
   
   if (!userRecord) return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });

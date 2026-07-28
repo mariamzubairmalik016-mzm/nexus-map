@@ -25,7 +25,7 @@ export default function GlobalError({
       <body style={{ margin: 0, background: "#020617", color: "#f8fafc", fontFamily: "system-ui, sans-serif" }}>
         <div
           role="alert"
-          style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}
+          style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}
         >
           <div style={{ maxWidth: "28rem", textAlign: "center" }}>
             <h1 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Nexus Map ran into a problem</h1>

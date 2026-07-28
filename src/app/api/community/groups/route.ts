@@ -20,16 +20,14 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
 
     try {
-      let query = db.select().from(travelGroups);
-      if (search) {
-        const q = search.toLowerCase();
-        query = query.where(
-          or(
+      const q = search?.toLowerCase();
+      const where = q
+        ? or(
             like(sql`LOWER(${travelGroups.name})`, `%${q}%`),
-            like(sql`LOWER(${travelGroups.description})`, `%${q}%`)
+            like(sql`LOWER(${travelGroups.description})`, `%${q}%`),
           )
-        );
-      }
+        : undefined;
+      const query = db.select().from(travelGroups).where(where);
       const data = await query.orderBy(travelGroups.memberCount);
       if (data.length > 0) {
         const mapped = data.map(g => ({ ...g, tags: JSON.parse(g.tags || "[]") }));
@@ -58,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const userRecord = await db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.email, session.user.email!),
+      where: (users, { eq }) => eq(users.email, session.user!.email!),
     });
     if (!userRecord) return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
 
