@@ -28,11 +28,11 @@ const LiveAIVoice = () => {
   const [history, setHistory] = useState<ChatTurn[]>([]);
 
   const recognitionRef = useRef<any>(null);
-  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      synthRef.current = window.speechSynthesis;
+      audioRef.current = new Audio();
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
@@ -115,36 +115,44 @@ const LiveAIVoice = () => {
     }
   };
 
-  const speakResponse = (text: string) => {
-    if (!synthRef.current) return;
+  const speakResponse = async (text: string) => {
+    if (!audioRef.current) return;
     
     // Stop any existing speech
-    synthRef.current.cancel();
+    audioRef.current.pause();
+    setSpeaking(true);
     
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Try to find a good English or natural voice if possible, but default is fine
-    const voices = synthRef.current.getVoices();
-    const googleVoice = voices.find(v => v.name.includes("Google") || v.name.includes("Natural"));
-    if (googleVoice) {
-      utterance.voice = googleVoice;
-    }
-    
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => {
+    try {
+      const response = await fetch("/api/ai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      
+      if (!response.ok) throw new Error("TTS failed");
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      
+      audioRef.current.src = url;
+      audioRef.current.onended = () => {
+        setSpeaking(false);
+        // Wait half a second before listening again to avoid echoing itself
+        setTimeout(() => startListening(), 500);
+      };
+      
+      await audioRef.current.play();
+    } catch (err) {
+      console.error(err);
       setSpeaking(false);
-      // Auto-restart listening after speaking
       startListening();
-    };
-    utterance.onerror = () => setSpeaking(false);
-    
-    synthRef.current.speak(utterance);
+    }
   };
 
   const startListening = () => {
-    if (recognitionRef.current && !listening) {
+    if (recognitionRef.current && !listening && !speaking) {
       try {
-        if (synthRef.current) synthRef.current.cancel();
+        if (audioRef.current) audioRef.current.pause();
         setSpeaking(false);
         recognitionRef.current.start();
         setListening(true);
@@ -163,7 +171,7 @@ const LiveAIVoice = () => {
 
   const stopVoice = () => {
     stopListening();
-    if (synthRef.current) synthRef.current.cancel();
+    if (audioRef.current) audioRef.current.pause();
     setSpeaking(false);
   };
 

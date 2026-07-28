@@ -19,3 +19,4 @@ nexus-map/
 *.bak
 .env.local.bak
 .freebuff/
+.env*
