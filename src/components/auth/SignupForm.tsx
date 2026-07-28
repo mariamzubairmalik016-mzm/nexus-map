@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { Eye, EyeOff, LoaderCircle, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Eye, EyeOff, KeyRound, LoaderCircle, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import toast from "react-hot-toast";
@@ -22,8 +22,24 @@ const SignupForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [adminKey, setAdminKey] = useState("");
+  const [adminKeyEnabled, setAdminKeyEnabled] = useState(false);
+  const [showAdminField, setShowAdminField] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Only offer the admin field when this deployment actually has a key set,
+  // so nobody is shown a control that could never work.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/auth/admin-key")
+      .then((r) => r.json())
+      .then((p) => !cancelled && setAdminKeyEnabled(Boolean(p?.data?.enabled)))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /** Client-side mirror of the server schema, for an instant answer. */
   const validate = (): string | null => {
@@ -49,7 +65,12 @@ const SignupForm = () => {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          ...(adminKey.trim() ? { adminKey: adminKey.trim() } : {}),
+        }),
       });
 
       const data = await response.json().catch(() => ({}));
@@ -160,6 +181,39 @@ const SignupForm = () => {
           At least 8 characters.
         </span>
       </label>
+
+      {adminKeyEnabled && (
+        <div>
+          {showAdminField ? (
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-slate-300">Admin access key</span>
+              <div className={fieldClass}>
+                <KeyRound size={19} className="shrink-0 text-cyan-400" aria-hidden="true" />
+                <input
+                  type="text"
+                  value={adminKey}
+                  onChange={(e) => setAdminKey(e.target.value)}
+                  placeholder="15-character key"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="min-w-0 flex-1 bg-transparent py-4 font-mono tracking-wider outline-none"
+                />
+              </div>
+              <span className="mt-2 block text-xs text-slate-500">
+                Leave blank for a normal account.
+              </span>
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAdminField(true)}
+              className="text-sm text-cyan-300 underline-offset-4 hover:underline"
+            >
+              Have an admin key?
+            </button>
+          )}
+        </div>
+      )}
 
       <button disabled={submitting} className="nexus-button-primary nexus-button-block py-4">
         {submitting && <LoaderCircle className="animate-spin" size={19} aria-hidden="true" />}

@@ -26,6 +26,19 @@ const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE
 export const authOptions: AuthOptions = {
   adapter: DrizzleAdapter(db) as any,
   session: { strategy: "jwt" },
+  /**
+   * Stated explicitly rather than left to NextAuth's implicit lookup.
+   *
+   * In development NextAuth derives a secret when none is set, so sign-in works
+   * on a laptop. In production it throws instead, and every auth route — sign
+   * in, sign up, session — returns a 500. The symptom is the confusing one
+   * this deployment hit: authentication works for the developer locally and
+   * for nobody at all on the deployed site.
+   *
+   * Reading it here means a missing value shows up in the startup log and in
+   * /api/health/env as a named missing variable, instead of as an opaque 500.
+   */
+  secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/login",
     error: "/login",
