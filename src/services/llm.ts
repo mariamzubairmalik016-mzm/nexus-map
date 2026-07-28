@@ -19,97 +19,67 @@
  * fails and fall back to their own deterministic output.
  */
 
-type Provider = { url: string; key: string; models: string[]; headers: Record<string, string> };
-
-/** Free OpenRouter models, best-behaved first. */
-const OPENROUTER_MODELS = [
-  "google/gemma-4-31b-it:free",
-  "google/gemma-4-26b-a4b-it:free",
-  // Reasoning-style models are last: they tend to narrate their thinking into
-  // the response, which is wrong for user-facing copy.
-  "nvidia/nemotron-3-super-120b-a12b:free",
-];
-
-const resolveProvider = (): Provider | null => {
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  if (openRouterKey) {
-    const configured = process.env.OPENROUTER_MODEL;
-    return {
-      url: "https://openrouter.ai/api/v1/chat/completions",
-      key: openRouterKey,
-      models: configured ? [configured, ...OPENROUTER_MODELS] : OPENROUTER_MODELS,
-      // OpenRouter asks for these to attribute traffic; harmless if unset.
-      headers: {
-        "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
-        "X-Title": "Nexus Map",
-      },
-    };
-  }
-
-  const openAiKey = process.env.OPENAI_API_KEY;
-  if (openAiKey) {
-    return {
-      url: "https://api.openai.com/v1/chat/completions",
-      key: openAiKey,
-      models: [process.env.OPENAI_MODEL || "gpt-4o-mini"],
-      headers: {},
-    };
-  }
-
-  return null;
-};
-
-export const llmAvailable = () => resolveProvider() !== null;
+export const llmAvailable = () => !!process.env.GEMINI_API_KEY;
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 /**
- * Ask the model. Returns the reply text, or null if no provider is configured
- * and/or every model failed.
+ * Ask the Gemini model natively.
  */
 export const chatComplete = async (
   messages: ChatMessage[],
   options: { maxTokens?: number; temperature?: number } = {},
 ): Promise<string | null> => {
-  const provider = resolveProvider();
-  if (!provider) return null;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("[llm] GEMINI_API_KEY is missing.");
+    return null;
+  }
 
-  for (const model of provider.models) {
-    try {
-      const response = await fetch(provider.url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${provider.key}`,
-          "Content-Type": "application/json",
-          ...provider.headers,
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          max_tokens: options.maxTokens ?? 500,
-          temperature: options.temperature ?? 0.6,
-        }),
-        signal: AbortSignal.timeout(25_000),
+  // Convert messages to Gemini format
+  let systemInstruction: any = undefined;
+  const contents: any[] = [];
+  
+  for (const msg of messages) {
+    if (msg.role === "system") {
+      systemInstruction = { parts: [{ text: msg.content }] };
+    } else {
+      contents.push({
+        role: msg.role === "assistant" ? "model" : "user",
+        parts: [{ text: msg.content }]
       });
-
-      if (!response.ok) {
-        // 429 on a free model means "try the next one", not "give up".
-        console.warn(`[llm] ${model} -> ${response.status}; trying next model.`);
-        continue;
-      }
-
-      const payload = await response.json();
-      // OpenRouter reports upstream provider failures in the body with a 200.
-      if (payload?.error) {
-        console.warn(`[llm] ${model} -> ${String(payload.error?.message).slice(0, 80)}; trying next model.`);
-        continue;
-      }
-
-      const reply = payload?.choices?.[0]?.message?.content;
-      if (typeof reply === "string" && reply.trim()) return reply.trim();
-    } catch (error) {
-      console.warn(`[llm] ${model} request failed; trying next model.`, error);
     }
+  }
+
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents,
+        systemInstruction,
+        generationConfig: {
+          maxOutputTokens: options.maxTokens ?? 800,
+          temperature: options.temperature ?? 0.7,
+        }
+      }),
+      signal: AbortSignal.timeout(25_000),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("[llm] Gemini API error:", response.status, errText);
+      return null;
+    }
+
+    const payload = await response.json();
+    const reply = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (typeof reply === "string" && reply.trim()) {
+      return reply.trim();
+    }
+  } catch (error) {
+    console.error("[llm] Gemini request failed:", error);
   }
 
   return null;
