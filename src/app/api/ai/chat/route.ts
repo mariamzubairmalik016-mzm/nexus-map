@@ -4,6 +4,7 @@ import { ilike, or, sql } from "drizzle-orm";
 import { db } from "../../../../db";
 import { geoCities, tourismPOIs, roadAlerts } from "../../../../db/schema";
 import { searchTomTom } from "../../../../services/tomtom.service";
+import { chatComplete } from "../../../../services/llm";
 
 /**
  * Assistant endpoint for the floating chatbot.
@@ -13,7 +14,7 @@ import { searchTomTom } from "../../../../services/tomtom.service";
  * visibly broken app-wide.
  *
  * Two answer paths, in order:
- *   1. OpenAI, when OPENAI_API_KEY is present AND valid.
+ *   1. A language model, when one is reachable (OpenRouter or OpenAI).
  *   2. A grounded responder that answers from this app's own data — the city
  *      catalogue, the POI table, active road alerts, and TomTom search.
  *
@@ -33,45 +34,16 @@ const SYSTEM_PROMPT = [
   "If you are not certain about a fact (a road closure, an opening time, a price), say so rather than guessing.",
 ].join(" ");
 
-/** Ask OpenAI. Returns null on any failure so the caller can fall back. */
-async function askOpenAI(message: string, history: ChatTurn[]): Promise<string | null> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-        max_tokens: 400,
-        temperature: 0.6,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...history.slice(-8).map((turn) => ({ role: turn.role, content: turn.content })),
-          { role: "user", content: message },
-        ],
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
-
-    if (!response.ok) {
-      // 401 (bad key) and 429 (quota) are the common ones. Log the status so
-      // the cause is visible in the server log instead of silently degrading.
-      console.warn(`[ai/chat] OpenAI returned ${response.status}; using grounded fallback.`);
-      return null;
-    }
-
-    const payload = await response.json();
-    const reply = payload?.choices?.[0]?.message?.content;
-    return typeof reply === "string" && reply.trim() ? reply.trim() : null;
-  } catch (error) {
-    console.warn("[ai/chat] OpenAI request failed; using grounded fallback.", error);
-    return null;
-  }
+/** Ask the model. Returns null on any failure so the caller can fall back. */
+async function askModel(message: string, history: ChatTurn[]): Promise<string | null> {
+  return chatComplete(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...history.slice(-8).map((turn) => ({ role: turn.role, content: turn.content })),
+      { role: "user", content: message },
+    ],
+    { maxTokens: 400, temperature: 0.6 },
+  );
 }
 
 /** Pull the most likely place name out of a free-text question. */
@@ -176,7 +148,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Message is required." }, { status: 400 });
     }
 
-    const reply = (await askOpenAI(message, history)) ?? (await groundedAnswer(message));
+    const reply = (await askModel(message, history)) ?? (await groundedAnswer(message));
 
     return NextResponse.json({ success: true, data: { reply } });
   } catch (error) {
