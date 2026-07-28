@@ -19,7 +19,7 @@ export default function RouteSkeleton({ variant = "page", label = "Loading" }: P
       role="status"
       aria-live="polite"
       aria-busy="true"
-      className="min-h-[calc(100vh-80px)] px-4 py-8 sm:px-6 lg:px-8"
+      className="min-h-[calc(100dvh-80px)] px-4 py-8 sm:px-6 lg:px-8"
     >
       <span className="sr-only">{label}…</span>
       <div className="mx-auto max-w-7xl">

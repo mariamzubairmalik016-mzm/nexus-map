@@ -66,7 +66,9 @@ html {
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  /* dvh, not vh: on mobile the address bar makes 100vh taller than the visible
+     area, so full-height sections were pushed under the fold. */
+  min-height: 100dvh;
   overflow-x: hidden;
   background:
     radial-gradient(circle at 12% 12%, rgba(34, 211, 238, 0.09), transparent 26rem),
@@ -244,7 +246,7 @@ select option {
 .nexus-page {
   position: relative;
   isolation: isolate;
-  min-height: calc(100vh - 80px);
+  min-height: calc(100dvh - 80px);
 }
 
 .nexus-page::before {
@@ -256,6 +258,36 @@ select option {
   background:
     radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.055), transparent 26rem),
     radial-gradient(circle at 90% 30%, rgba(168, 85, 247, 0.055), transparent 30rem);
+}
+
+/* iPhone notch and home indicator.
+   `viewportFit: cover` in the layout lets the page extend under both, which is
+   what makes the background reach the screen edges — but without this the last
+   element in a page sits behind the home indicator and the horizontal gutters
+   disappear under the notch in landscape. */
+.nexus-page-body {
+  padding-bottom: max(var(--page-bottom), env(safe-area-inset-bottom));
+}
+
+@supports (padding: max(0px)) {
+  .nexus-page-body {
+    padding-left: max(var(--page-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--page-gutter), env(safe-area-inset-right));
+  }
+
+  @media (min-width: 640px) {
+    .nexus-page-body {
+      padding-left: max(var(--page-gutter-sm), env(safe-area-inset-left));
+      padding-right: max(var(--page-gutter-sm), env(safe-area-inset-right));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .nexus-page-body {
+      padding-left: max(var(--page-gutter-lg), env(safe-area-inset-left));
+      padding-right: max(var(--page-gutter-lg), env(safe-area-inset-right));
+    }
+  }
 }
 
 /* Vertical rhythm for a standard page. Kept separate from .nexus-container so

@@ -672,7 +672,7 @@ const MapPage = () => {
   };
 
   return (
-    <section className="min-h-[calc(100vh-80px)] bg-[#020617] px-3 py-6 sm:px-6 lg:px-8">
+    <section className="min-h-[calc(100dvh-80px)] bg-[#020617] px-3 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1800px]">
         <div className="mb-6">
           <p className="text-sm uppercase tracking-[0.28em] text-cyan-400">

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   const userRecord = await db.query.users.findFirst({
-    where: (users, { eq }) => eq(users.email, session.user.email!),
+    where: (users, { eq }) => eq(users.email, session.user!.email!),
   });
   
   if (!userRecord) return NextResponse.json({ success: false, message: "User not found" }, { status: 404 });
