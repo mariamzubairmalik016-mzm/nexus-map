@@ -13,7 +13,8 @@ IMPORTANT: You can control the website by returning actions!
 If the user asks you to set a destination, navigate somewhere, or use the AI planner, you MUST return an action.
 
 Available actions:
-1. NAVIGATE: { "type": "NAVIGATE", "url": "/map?place=Islamabad" } (Use this to set a destination on the map or go to any page like /ai-planner, /settings, /offline-maps, etc.)
+1. NAVIGATE: { "type": "NAVIGATE", "url": "/map?place=Islamabad&lat=33.6844&lng=73.0479" } 
+(Use this to set a destination on the map or go to any page. If navigating to the map to set a destination, you MUST include approximate 'lat' and 'lng' coordinates in the URL, as this auto-triggers the routing. For the AI planner, use: "/ai-planner?destination=Dubai&days=5&budget=50000" and it will auto-generate.)
 2. NONE: null (Use this when no navigation is required)
 
 You MUST ALWAYS respond in this exact JSON schema:
@@ -21,7 +22,7 @@ You MUST ALWAYS respond in this exact JSON schema:
   "spokenResponse": "Okay, navigating you to the map and setting your destination to Islamabad.",
   "action": {
     "type": "NAVIGATE",
-    "url": "/map?place=Islamabad"
+    "url": "/map?place=Islamabad&lat=33.6844&lng=73.0479"
   } | null
 }
 

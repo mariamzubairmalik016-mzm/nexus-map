@@ -20,9 +20,13 @@ import toast from "react-hot-toast";
 import { generateTripPlan } from "../../services/tripPlannerService";
 import { useInternetStatus } from "../../hooks/useInternetStatus";
 import type { GeneratedTripPlan } from "../../types/tripPlanner";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 const AIPlanner = () => {
   const online = useInternetStatus();
+  const searchParams = useSearchParams();
+  const autoTriggered = useRef(false);
   const [destination, setDestination] = useState("Hunza Valley");
   const [days, setDays] = useState(4);
   const [budget, setBudget] = useState(80000);
@@ -32,27 +36,38 @@ const AIPlanner = () => {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<GeneratedTripPlan | null>(null);
 
-  const handleGenerate = async () => {
-    if (!destination.trim()) {
+  const handleGenerate = async (overrides?: {
+    dest?: string;
+    d?: number;
+    b?: number;
+    c?: string;
+    tType?: string;
+    trans?: string;
+  }) => {
+    const activeDest = (overrides?.dest ?? destination).trim();
+    const activeDays = overrides?.d ?? days;
+    const activeBudget = overrides?.b ?? budget;
+    const activeCurrency = overrides?.c ?? currency;
+    const activeTripType = overrides?.tType ?? tripType;
+    const activeTransport = overrides?.trans ?? transport;
+
+    if (!activeDest) {
       toast.error("Please enter a destination.");
       return;
     }
 
-    if (days < 1 || days > 14) {
+    if (activeDays < 1 || activeDays > 14) {
       toast.error("Trip days must be between 1 and 14.");
       return;
     }
 
-    if (budget <= 0) {
+    if (activeBudget <= 0) {
       toast.error("Please enter a valid budget.");
       return;
     }
 
-    // AI planning needs the backend. Offline we say so plainly instead of
-    // letting a fetch fail into a console error — every other feature (map,
-    // GPS, saved places, saved routes, downloaded regions) keeps working.
     if (!online) {
-      toast.error("Trip planning needs an internet connection. Your saved plans and routes still work offline.");
+      toast.error("Trip planning needs an internet connection.");
       return;
     }
 
@@ -60,12 +75,12 @@ const AIPlanner = () => {
       setLoading(true);
 
       const generated = await generateTripPlan({
-        destination: destination.trim(),
-        days,
-        budget,
-        currency,
-        tripType,
-        transport,
+        destination: activeDest,
+        days: activeDays,
+        budget: activeBudget,
+        currency: activeCurrency,
+        tripType: activeTripType,
+        transport: activeTransport,
       });
 
       setPlan(generated);
@@ -80,6 +95,36 @@ const AIPlanner = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const dest = searchParams?.get("destination");
+    if (dest && !autoTriggered.current) {
+      autoTriggered.current = true;
+      setDestination(dest);
+      
+      const rawDays = searchParams?.get("days");
+      const rawBudget = searchParams?.get("budget");
+      
+      const parsedDays = rawDays ? parseInt(rawDays, 10) : NaN;
+      const parsedBudget = rawBudget ? parseInt(rawBudget, 10) : NaN;
+      
+      const d = !isNaN(parsedDays) ? parsedDays : days;
+      const b = !isNaN(parsedBudget) ? parsedBudget : budget;
+      
+      const tType = searchParams?.get("tripType") || tripType;
+      const trans = searchParams?.get("transport") || transport;
+      
+      if (!isNaN(parsedDays)) setDays(d);
+      if (!isNaN(parsedBudget)) setBudget(b);
+      if (searchParams?.get("tripType")) setTripType(tType);
+      if (searchParams?.get("transport")) setTransport(trans);
+
+      // Give a tiny delay so the UI updates the fields before starting loader
+      setTimeout(() => {
+        handleGenerate({ dest, d, b, tType, trans });
+      }, 500);
+    }
+  }, [searchParams]);
 
   const downloadPlan = () => {
     if (!plan) return;

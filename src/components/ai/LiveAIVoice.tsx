@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Mic, X, LoaderCircle, AudioLines, MapPin, Map as MapIcon, Route } from "lucide-react";
+import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -29,10 +30,12 @@ const LiveAIVoice = () => {
 
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       audioRef.current = new Audio();
+      synthRef.current = window.speechSynthesis;
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
@@ -120,6 +123,7 @@ const LiveAIVoice = () => {
     
     // Stop any existing speech
     audioRef.current.pause();
+    if (synthRef.current) synthRef.current.cancel();
     setSpeaking(true);
     
     try {
@@ -129,7 +133,7 @@ const LiveAIVoice = () => {
         body: JSON.stringify({ text }),
       });
       
-      if (!response.ok) throw new Error("TTS failed");
+      if (!response.ok) throw new Error("TTS failed with status " + response.status);
       
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -137,15 +141,40 @@ const LiveAIVoice = () => {
       audioRef.current.src = url;
       audioRef.current.onended = () => {
         setSpeaking(false);
-        // Wait half a second before listening again to avoid echoing itself
         setTimeout(() => startListening(), 500);
       };
       
       await audioRef.current.play();
     } catch (err) {
-      console.error(err);
-      setSpeaking(false);
-      startListening();
+      console.warn("Gemini Voice rate-limited or failed, falling back to Native Voice:", err);
+      
+      if (synthRef.current) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Find best fallback voice
+        const voices = synthRef.current.getVoices();
+        const fallbackVoice = voices.find(v => 
+          v.name.toLowerCase().includes("male") || 
+          v.name.toLowerCase().includes("daniel") || 
+          v.name.toLowerCase().includes("alex") ||
+          v.name.includes("Google")
+        );
+        if (fallbackVoice) utterance.voice = fallbackVoice;
+        
+        utterance.onend = () => {
+          setSpeaking(false);
+          setTimeout(() => startListening(), 500);
+        };
+        utterance.onerror = () => {
+          setSpeaking(false);
+          startListening();
+        };
+        
+        synthRef.current.speak(utterance);
+      } else {
+        setSpeaking(false);
+        startListening();
+      }
     }
   };
 
@@ -153,11 +182,15 @@ const LiveAIVoice = () => {
     if (recognitionRef.current && !listening && !speaking) {
       try {
         if (audioRef.current) audioRef.current.pause();
+        if (synthRef.current) synthRef.current.cancel();
         setSpeaking(false);
         recognitionRef.current.start();
         setListening(true);
-      } catch (e) {
+      } catch (e: any) {
         console.error("Could not start listening", e);
+        if (e.name === 'NotAllowedError' || e.message?.includes('not allowed')) {
+          toast.error("Microphone access blocked. Please allow mic access in your browser settings.");
+        }
       }
     }
   };
@@ -181,9 +214,17 @@ const LiveAIVoice = () => {
       stopVoice();
     } else {
       if (!user) {
-        alert("Please sign in to use Live AI.");
+        toast.error("Please sign in to use Live AI.");
         return;
       }
+      
+      // iOS Safari requires SpeechSynthesis to be unlocked via a direct user interaction.
+      if (synthRef.current) {
+        const silent = new SpeechSynthesisUtterance("");
+        silent.volume = 0;
+        synthRef.current.speak(silent);
+      }
+      
       setOpen(true);
       setHistory([]);
       startListening();
