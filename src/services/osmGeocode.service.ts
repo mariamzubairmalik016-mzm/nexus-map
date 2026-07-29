@@ -35,6 +35,13 @@ export type OsmPlace = {
   city?: string;
   country?: string;
   category?: string;
+  /**
+   * Nominatim's global prominence score, roughly 0–1: a capital sits near 0.8,
+   * a hamlet near 0.2. It is the only signal any of the three providers gives
+   * that separates same-named places by significance, which is what tells
+   * "Islamabad" the capital from the village of Islamabad in Sindh.
+   */
+  importance?: number;
   position: { latitude: number; longitude: number };
 };
 
@@ -46,6 +53,7 @@ type NominatimResult = {
   display_name: string;
   type?: string;
   category?: string;
+  importance?: number;
   address?: Record<string, string>;
 };
 
@@ -101,6 +109,7 @@ export const searchOsm = async (
           city: addr.city || addr.town || addr.village || addr.state_district,
           country: addr.country,
           category: r.type || r.category,
+          importance: typeof r.importance === "number" ? r.importance : undefined,
           position: { latitude, longitude },
         };
       })

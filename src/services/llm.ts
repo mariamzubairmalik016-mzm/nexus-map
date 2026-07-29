@@ -1,22 +1,15 @@
 /**
- * Chat-completion provider.
+ * Chat-completion provider — Gemini, called natively.
  *
- * Both OpenAI and OpenRouter speak the same request shape, so one client
- * covers either. Whichever key is present wins; OpenRouter is preferred when
- * both exist, because the OpenAI account this project was given has no quota
- * (every completion returns 429 "exceeded your current quota").
+ * OpenRouter was dropped because its free tier is rate-limited *upstream*: a
+ * model answers, then returns 429 "temporarily rate-limited upstream" from
+ * Google AI Studio minutes later. Talking to Google directly removes that
+ * middle layer.
  *
- * Two things make a single hardcoded model call unreliable here:
- *
- *   1. OpenRouter's free tier is rate-limited *upstream*. `gemma-4-31b-it:free`
- *      answers, then returns 429 "temporarily rate-limited upstream" from
- *      Google AI Studio minutes later.
- *   2. Free models frequently reject `response_format: json_object` with
- *      "Provider returned error", so JSON cannot be requested structurally.
- *
- * So: try each model in turn, and extract JSON from the text rather than
- * relying on the provider to enforce it. Callers get null when everything
- * fails and fall back to their own deterministic output.
+ * A single hardcoded model is still not enough — the free tier caps requests
+ * per model per day, so one model running dry must not take the assistant
+ * down with it. Each model in `MODELS` is tried in turn and the first that
+ * answers wins.
  */
 
 export const llmAvailable = () => !!process.env.GEMINI_API_KEY;
@@ -24,11 +17,76 @@ export const llmAvailable = () => !!process.env.GEMINI_API_KEY;
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 /**
- * Ask the Gemini model natively.
+ * Tried in order. 3.1-flash-lite leads: it is the fastest model that still
+ * follows a strict JSON contract, which matters when every reply has to be
+ * spoken back within a second or two. The rest are same-shape stand-ins for
+ * when its daily quota is gone.
  */
+const MODELS = [
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+];
+
+type Options = {
+  maxTokens?: number;
+  temperature?: number;
+  /** Ask Gemini for structured JSON instead of scraping it out of prose. */
+  json?: boolean;
+};
+
+/** One attempt against one model. Returns null so the caller can try the next. */
+const ask = async (
+  model: string,
+  contents: unknown[],
+  systemInstruction: unknown,
+  options: Options,
+  apiKey: string,
+): Promise<string | null> => {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          systemInstruction,
+          generationConfig: {
+            maxOutputTokens: options.maxTokens ?? 800,
+            temperature: options.temperature ?? 0.7,
+            ...(options.json ? { responseMimeType: "application/json" } : {}),
+          },
+        }),
+        signal: AbortSignal.timeout(25_000),
+      },
+    );
+
+    if (!response.ok) {
+      console.warn(`[llm] ${model} → ${response.status}: ${(await response.text()).slice(0, 200)}`);
+      return null;
+    }
+
+    const payload = await response.json();
+    const parts = payload?.candidates?.[0]?.content?.parts;
+    // Reasoning models emit thought parts alongside the answer; join the text
+    // ones rather than assuming the answer is at index 0.
+    const reply = Array.isArray(parts)
+      ? parts.map((part: any) => (typeof part?.text === "string" ? part.text : "")).join("")
+      : "";
+
+    return reply.trim() || null;
+  } catch (error) {
+    console.warn(`[llm] ${model} failed:`, (error as Error).message);
+    return null;
+  }
+};
+
+/** Ask Gemini, falling through the model chain until one answers. */
 export const chatComplete = async (
   messages: ChatMessage[],
-  options: { maxTokens?: number; temperature?: number } = {},
+  options: Options = {},
 ): Promise<string | null> => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -36,50 +94,23 @@ export const chatComplete = async (
     return null;
   }
 
-  // Convert messages to Gemini format
-  let systemInstruction: any = undefined;
-  const contents: any[] = [];
-  
-  for (const msg of messages) {
-    if (msg.role === "system") {
-      systemInstruction = { parts: [{ text: msg.content }] };
+  let systemInstruction: unknown = undefined;
+  const contents: unknown[] = [];
+
+  for (const message of messages) {
+    if (message.role === "system") {
+      systemInstruction = { parts: [{ text: message.content }] };
     } else {
       contents.push({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }]
+        role: message.role === "assistant" ? "model" : "user",
+        parts: [{ text: message.content }],
       });
     }
   }
 
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents,
-        systemInstruction,
-        generationConfig: {
-          maxOutputTokens: options.maxTokens ?? 800,
-          temperature: options.temperature ?? 0.7,
-        }
-      }),
-      signal: AbortSignal.timeout(25_000),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[llm] Gemini API error:", response.status, errText);
-      return null;
-    }
-
-    const payload = await response.json();
-    const reply = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (typeof reply === "string" && reply.trim()) {
-      return reply.trim();
-    }
-  } catch (error) {
-    console.error("[llm] Gemini request failed:", error);
+  for (const model of MODELS) {
+    const reply = await ask(model, contents, systemInstruction, options, apiKey);
+    if (reply) return reply;
   }
 
   return null;
@@ -88,19 +119,26 @@ export const chatComplete = async (
 /**
  * Ask for JSON and parse it.
  *
- * `response_format` is deliberately not sent — free models reject it outright.
- * The prompt asks for JSON and the first balanced object is extracted from the
- * reply, which also survives a model that wraps output in ``` fences.
+ * `responseMimeType: application/json` is requested, but the first balanced
+ * object is still extracted from the reply — a fallback model in the chain may
+ * ignore the mime type and wrap its answer in ``` fences.
  */
 export const chatCompleteJson = async <T>(
   messages: ChatMessage[],
-  options: { maxTokens?: number; temperature?: number } = {},
+  options: Options = {},
 ): Promise<T | null> => {
-  const raw = await chatComplete(messages, options);
+  const raw = await chatComplete(messages, { ...options, json: true });
   if (!raw) return null;
 
-  const fenced = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-  const match = fenced.match(/\{[\s\S]*\}/);
+  const unfenced = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+
+  try {
+    return JSON.parse(unfenced) as T;
+  } catch {
+    // Not clean JSON — fall back to the first balanced object in the text.
+  }
+
+  const match = unfenced.match(/\{[\s\S]*\}/);
   if (!match) return null;
 
   try {

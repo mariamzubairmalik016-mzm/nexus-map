@@ -44,7 +44,27 @@ Optional:
 | Variable | Effect if unset |
 |---|---|
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google button is hidden; email/password still works |
-| `OPENAI_API_KEY` | Chatbot and trip planner fall back to data-grounded replies |
+| `GEMINI_API_KEY` | Live AI voice assistant loses its brain and its voice; trip plans fall back to the built-in planner |
+| `GEMINI_TTS_VOICE` | Defaults to `Charon`, the deep male voice |
+
+### Live AI voice assistant
+
+The floating button opens a hands-free assistant that runs the app by voice. It
+speaks whatever language you speak — in that language's own script — and drives
+the site rather than describing it: "Lahore se Islamabad ka route set kro",
+"take me to Liberty Market and start navigation", "plan a solo bike trip to
+Skardu for a week".
+
+Place names are geocoded server-side through the same TomTom/Geoapify/OSM
+pipeline the search box uses, so the assistant never invents coordinates. The
+resolved place is passed to the map or planner as query parameters, which those
+pages act on automatically — no tapping required.
+
+Speech is `gemini-3.1-flash-tts-preview`, falling back to
+`gemini-2.5-flash-preview-tts` when the daily free-tier cap (10 requests) runs
+out; identical audio is cached, so repeated lines cost no quota. If every model
+is exhausted the browser's built-in speech takes over, which sounds noticeably
+robotic — that is the signal that the Gemini quota is gone, not a bug.
 
 ### Google sign-in
 

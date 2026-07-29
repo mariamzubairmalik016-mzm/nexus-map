@@ -88,6 +88,44 @@ const formatMinutes = (seconds: number) =>
  */
 const MAX_INCIDENT_SPAN_DEGREES = 2;
 
+/**
+ * Builds a selection from URL parameters.
+ *
+ * The Live AI assistant drives this page entirely through the query string —
+ * it geocodes server-side and hands over real coordinates, so a voice command
+ * lands on the same kind of confirmed selection a tapped suggestion would.
+ * Missing or unparseable coordinates yield null, and the name is resolved by
+ * search instead.
+ */
+const suggestionFromParams = (
+  name: string | null,
+  latValue: string | null,
+  lngValue: string | null,
+  idPrefix: string,
+): SearchSuggestion | null => {
+  if (!name || !latValue || !lngValue) return null;
+
+  const latitude = Number(latValue);
+  const longitude = Number(lngValue);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  return {
+    id: `${idPrefix}-${name}`,
+    provider: "offline",
+    name,
+    displayName: name,
+    address: name,
+    lat: latitude,
+    lng: longitude,
+    position: { latitude, longitude },
+  };
+};
+
+const TRAVEL_MODES: TravelMode[] = ["car", "pedestrian", "bicycle"];
+
+const travelModeFromParam = (value: string | null): TravelMode | null =>
+  TRAVEL_MODES.includes(value as TravelMode) ? (value as TravelMode) : null;
+
 const MapPage = () => {
   const searchParams = useSearchParams();
   const online = useInternetStatus();
@@ -96,31 +134,24 @@ const MapPage = () => {
   // string is NOT a location. `start`/`destination` are only ever set by
   // picking a suggestion or by a GPS fix, and are cleared the moment the
   // matching text is edited.
-  const [startQuery, setStartQuery] = useState("");
+  const [startQuery, setStartQuery] = useState(searchParams.get("from") || "");
   const [destinationQuery, setDestinationQuery] = useState(searchParams.get("place") || "");
-  const [selectedStart, setSelectedStart] = useState<SearchSuggestion | null>(null);
-  const [selectedDestination, setSelectedDestination] = useState<SearchSuggestion | null>(() => {
-    const place = searchParams.get("place");
-    const latStr = searchParams.get("lat");
-    const lngStr = searchParams.get("lng");
-    if (place && latStr && lngStr) {
-      const latitude = Number(latStr);
-      const longitude = Number(lngStr);
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        return {
-          id: `link-${place}`,
-          provider: "offline",
-          name: place,
-          displayName: place,
-          address: place,
-          lat: latitude,
-          lng: longitude,
-          position: { latitude, longitude },
-        };
-      }
-    }
-    return null;
-  });
+  const [selectedStart, setSelectedStart] = useState<SearchSuggestion | null>(() =>
+    suggestionFromParams(
+      searchParams.get("from"),
+      searchParams.get("fromLat"),
+      searchParams.get("fromLng"),
+      "link-from",
+    ),
+  );
+  const [selectedDestination, setSelectedDestination] = useState<SearchSuggestion | null>(() =>
+    suggestionFromParams(
+      searchParams.get("place"),
+      searchParams.get("lat"),
+      searchParams.get("lng"),
+      "link",
+    ),
+  );
 
   const start = selectedStart?.position ?? null;
   const destination = selectedDestination?.position ?? null;
@@ -132,7 +163,9 @@ const MapPage = () => {
   const [communityNotes, setCommunityNotes] =
     useState<CommunityNote[]>([]);
   const [busy, setBusy] = useState(false);
-  const [travelMode, setTravelMode] = useState<TravelMode>("car");
+  const [travelMode, setTravelMode] = useState<TravelMode>(
+    () => travelModeFromParam(searchParams.get("mode")) ?? "car",
+  );
   const [routeType, setRouteType] = useState<RouteType>("fastest");
   const [avoidTolls, setAvoidTolls] = useState(false);
   const [avoidFerries, setAvoidFerries] = useState(false);
@@ -528,24 +561,74 @@ const MapPage = () => {
     }
   };
 
+  /**
+   * Resolve any place named in the URL that arrived without coordinates.
+   *
+   * The Live AI assistant geocodes before it navigates, so its links already
+   * carry coordinates and skip this. A hand-written or shared link may not,
+   * and both ends of the trip have to survive that.
+   */
   useEffect(() => {
-    const place = searchParams.get("place");
-    const latStr = searchParams.get("lat");
-    const lngStr = searchParams.get("lng");
+    const resolve = (
+      name: string | null,
+      latValue: string | null,
+      lngValue: string | null,
+      apply: (match: SearchSuggestion) => void,
+    ) => {
+      if (!name || (latValue && lngValue)) return;
 
-    if (place && (!latStr || !lngStr)) {
-      // Resolve global place name to coordinates if missing in URL
-      void navigationApi.search(place).then((matches) => {
-        if (matches.length > 0) {
-          setSelectedDestination(matches[0]);
-        } else {
-          toast.error(`Could not find location for "${place}"`);
-        }
-      }).catch(() => {
-        toast.error("Location search needs an internet connection.");
-      });
-    }
+      void navigationApi
+        .search(name)
+        .then((matches) => {
+          if (matches.length > 0) {
+            apply(matches[0]);
+          } else {
+            toast.error(`Could not find location for "${name}"`);
+          }
+        })
+        .catch(() => {
+          toast.error("Location search needs an internet connection.");
+        });
+    };
+
+    resolve(
+      searchParams.get("place"),
+      searchParams.get("lat"),
+      searchParams.get("lng"),
+      (match) => {
+        setSelectedDestination(match);
+        setDestinationQuery(match.name);
+      },
+    );
+
+    resolve(
+      searchParams.get("from"),
+      searchParams.get("fromLat"),
+      searchParams.get("fromLng"),
+      (match) => {
+        setSelectedStart(match);
+        setStartQuery(match.name);
+      },
+    );
   }, [searchParams]);
+
+  /**
+   * `?go=1` — begin turn-by-turn as soon as a route exists.
+   *
+   * This is what makes "start navigation to Islamabad" a single spoken command
+   * rather than a command plus a tap. Fires once: `live.stop()` must not be
+   * undone by this effect re-running.
+   */
+  const autoNavigateDone = useRef(false);
+  useEffect(() => {
+    if (autoNavigateDone.current) return;
+    if (searchParams.get("go") !== "1") return;
+    if (!selectedRoute || !destination || live.tracking) return;
+
+    autoNavigateDone.current = true;
+    live.start(selectedRoute, destination);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, selectedRoute, destination, live.tracking]);
 
 
 
