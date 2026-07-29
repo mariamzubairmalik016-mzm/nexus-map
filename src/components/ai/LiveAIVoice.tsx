@@ -5,7 +5,15 @@ import { Mic, X, LoaderCircle, AudioLines, Map as MapIcon, Route } from "lucide-
 import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
-import { executeVoiceAction, type VoiceAction } from "../../services/voiceActions";
+import {
+  executeVoiceAction,
+  needsConfirmation,
+  sameAction,
+  type VoiceAction,
+} from "../../services/voiceActions";
+// Shared with scripts/warm-voice-cache.mjs, which pre-renders these lines. The
+// text must match that file exactly or the pre-rendered audio is never found.
+import voicePhrases from "../../services/voicePhrases.json";
 
 declare global {
   interface Window {
@@ -47,7 +55,39 @@ const recalledLanguage = (): string => {
   return navigator.language || "en-US";
 };
 
-const GREETING = "Hi, I'm your Nexus Map assistant. Tell me where you want to go.";
+/**
+ * Phones need the recogniser driven differently from desktops.
+ *
+ * On Android Chrome and iOS Safari `continuous = true` is unreliable: the
+ * engine stops after the first utterance anyway, and on some builds asking for
+ * continuous capture makes it refuse to start at all — which is what "the mic
+ * gets blocked on phones" looks like from the outside. One utterance at a time,
+ * restarted deliberately, is what actually works.
+ */
+const isMobile = () =>
+  typeof navigator !== "undefined" &&
+  (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    // iPadOS reports itself as a Mac, but a Mac has no touch screen.
+    (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)));
+
+/**
+ * How long to wait before restarting the recogniser after it stops.
+ *
+ * Restarting instantly on a phone races the audio session teardown and throws;
+ * a beat of breathing room makes it reliable.
+ */
+const RESTART_DELAY_MS = 500;
+const RESTART_DELAY_MOBILE_MS = 900;
+
+/** Give up relaunching the mic after this many consecutive failures. */
+const MAX_RESTART_FAILURES = 4;
+
+const GREETING = voicePhrases.greeting;
+
+/** Kept identical to the entries in voicePhrases.json so they play from cache. */
+const COULD_NOT_CLICK = "I couldn't find that button on this screen.";
+const NO_SERVER = "I can't reach the server right now.";
+const SAY_AGAIN = "Sorry, I didn't catch that. Could you say that again?";
 
 const LiveAIVoice = () => {
   const { data: session } = useSession();
@@ -61,12 +101,34 @@ const LiveAIVoice = () => {
   const [processing, setProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [history, setHistory] = useState<ChatTurn[]>([]);
+  /** Shown when the mic will not open, so the panel explains itself rather than sitting silent. */
+  const [micBlocked, setMicBlocked] = useState(false);
+
+  const mobileRef = useRef(false);
+  const restartFailuresRef = useRef(0);
 
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const locationRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const langRef = useRef("en-US");
+  /**
+   * Identifies this conversation to the speech endpoint, which pins one model
+   * per session. Without it a daily quota resetting mid-chat would switch the
+   * assistant to a different model and its voice would audibly change between
+   * one sentence and the next.
+   */
+  const sessionRef = useRef<string>("");
+  /**
+   * The consequential action offered on the previous turn.
+   *
+   * Submitting only ever happens when the model repeats an action it already
+   * offered, so a single misheard sentence can never publish a road alert or
+   * raise an SOS on its own. This is enforced here rather than left to the
+   * prompt: the model deciding to skip its own confirmation step must not be
+   * enough to send something to other people.
+   */
+  const pendingRef = useRef<VoiceAction | null>(null);
 
   // State the recogniser callbacks need to read. They are registered once and
   // would otherwise close over the values from first render forever.
@@ -110,14 +172,28 @@ const LiveAIVoice = () => {
       recognition.lang = langRef.current;
       recognition.start();
       setListeningState(true);
+      restartFailuresRef.current = 0;
     } catch (error: any) {
       // "already started" is benign — the recogniser is in the state we wanted.
       if (error?.name === "InvalidStateError") {
         setListeningState(true);
         return;
       }
+
       if (error?.name === "NotAllowedError" || error?.message?.includes("not allowed")) {
         toast.error("Microphone access blocked. Allow mic access in your browser settings.");
+        setMicBlocked(true);
+        return;
+      }
+
+      // Phones throw here when the audio session has not finished tearing down
+      // from the reply that just played. Backing off and trying again is the
+      // difference between a working mic and one that never comes back.
+      restartFailuresRef.current += 1;
+      if (restartFailuresRef.current <= MAX_RESTART_FAILURES) {
+        setTimeout(() => startListening(), 400 * restartFailuresRef.current);
+      } else {
+        setMicBlocked(true);
       }
     }
   }, []);
@@ -156,15 +232,20 @@ const LiveAIVoice = () => {
 
       const done = () => {
         setSpeakingState(false);
-        // Small gap so the tail of the audio does not land in the next capture.
-        setTimeout(() => startListening(), 350);
+        // Gap so the tail of the reply does not land in the next capture, and
+        // so a phone has time to release the audio session before the mic
+        // claims it.
+        setTimeout(
+          () => startListening(),
+          mobileRef.current ? RESTART_DELAY_MOBILE_MS : 350,
+        );
       };
 
       try {
         const response = await fetch("/api/ai/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, session: sessionRef.current }),
         });
 
         if (!response.ok) throw new Error(`TTS ${response.status}`);
@@ -200,12 +281,20 @@ const LiveAIVoice = () => {
         utterance.rate = 0.98;
         utterance.pitch = 0.85; // Drop it toward a male range.
 
+        // Getting the language right matters more than getting a male voice:
+        // an English voice reading Urdu is unintelligible, whereas a female
+        // voice reading Urdu is merely not what was asked for. So filter by
+        // language first, and only then prefer a male speaker within it.
         const voices = synth.getVoices();
-        const male =
-          voices.find((voice) => /daniel|alex|rishi|google uk english male/i.test(voice.name)) ??
-          voices.find((voice) => /male/i.test(voice.name)) ??
-          voices.find((voice) => voice.lang === langRef.current);
-        if (male) utterance.voice = male;
+        const base = langRef.current.split("-")[0];
+        const sameLanguage = voices.filter((voice) => voice.lang.split("-")[0] === base);
+        const pool = sameLanguage.length ? sameLanguage : voices;
+
+        const chosen =
+          pool.find((voice) => /daniel|alex|rishi|google uk english male/i.test(voice.name)) ??
+          pool.find((voice) => /male/i.test(voice.name)) ??
+          pool[0];
+        if (chosen) utterance.voice = chosen;
 
         utterance.onend = done;
         utterance.onerror = done;
@@ -214,6 +303,58 @@ const LiveAIVoice = () => {
     },
     [startListening, stopListening],
   );
+
+  /**
+   * Sends a confirmed action to the API it belongs to.
+   *
+   * Runs in the browser rather than in `/api/ai/live` because these endpoints
+   * act as the signed-in user, and it is the browser that holds that session.
+   * Returns what to say about the outcome, so a failure is spoken rather than
+   * swallowed — believing a hazard warning went out when it did not is worse
+   * than being told it failed.
+   */
+  const submitAction = useCallback(async (action: VoiceAction): Promise<string | null> => {
+    const position = locationRef.current;
+    if (!position) return "I couldn't get your location, so I haven't sent anything.";
+
+    try {
+      if (action.type === "REPORT_ALERT") {
+        const response = await fetch("/api/road-alerts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: action.alertType,
+            severity: action.severity,
+            description: action.description,
+            latitude: position.latitude,
+            longitude: position.longitude,
+          }),
+        });
+        if (response.status === 401) return "You'll need to sign in before you can report a hazard.";
+        if (!response.ok) return "That didn't go through. Want me to try again?";
+        return null;
+      }
+
+      if (action.type === "SOS") {
+        const response = await fetch("/api/sos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            latitude: position.latitude,
+            longitude: position.longitude,
+            message: action.message,
+          }),
+        });
+        if (response.status === 401) return "You'll need to sign in before you can raise an SOS.";
+        if (!response.ok) return "The SOS didn't go through. Try the SOS button on the safety page.";
+        return null;
+      }
+    } catch {
+      return "I couldn't reach the server, so nothing was sent.";
+    }
+
+    return null;
+  }, []);
 
   const handleVoiceCommand = useCallback(
     async (text: string) => {
@@ -236,17 +377,23 @@ const LiveAIVoice = () => {
             history: priorHistory.slice(-8),
             location: locationRef.current,
             page: pathnameRef.current,
+            pending: pendingRef.current,
           }),
         });
 
         const payload = await response.json();
         const data = payload?.data as
-          | { spokenResponse: string; language: string | null; action: VoiceAction | null }
+          | {
+              spokenResponse: string;
+              language: string | null;
+              action: VoiceAction | null;
+              submit?: boolean;
+            }
           | undefined;
 
         if (!payload?.success || !data?.spokenResponse) {
           setProcessingState(false);
-          await speakResponse("Sorry, something went wrong. Say that again?");
+          await speakResponse(SAY_AGAIN);
           return;
         }
 
@@ -257,27 +404,41 @@ const LiveAIVoice = () => {
           rememberLanguage(data.language);
         }
 
-        const performed = executeVoiceAction(data.action, router);
-        const wantedClick = data.action?.type === "CLICK";
+        const action = data.action ?? null;
+        let failure: string | null = null;
+
+        if (needsConfirmation(action)) {
+          // `submit` comes from the server, which knows what was offered last
+          // turn. `sameAction` is checked again here so a stray flag cannot
+          // send something other than what this browser actually offered.
+          if (data.submit && sameAction(pendingRef.current, action)) {
+            pendingRef.current = null;
+            failure = await submitAction(action!);
+          } else {
+            pendingRef.current = action;
+          }
+        } else {
+          // Anything else means the moment has passed — an offer the user
+          // ignored or declined must not stay armed.
+          pendingRef.current = null;
+          const performed = executeVoiceAction(action, router);
+          if (action?.type === "CLICK" && !performed) failure = COULD_NOT_CLICK;
+        }
 
         setProcessingState(false);
 
-        // A button that is not on screen is the one failure the user cannot
-        // see for themselves — say so instead of going quiet.
-        await speakResponse(
-          wantedClick && !performed
-            ? "I couldn't find that button on this screen."
-            : data.spokenResponse,
-        );
+        // Speak the failure instead of the model's line: it said the hazard was
+        // reported, and the user has no other way to find out it was not.
+        await speakResponse(failure ?? data.spokenResponse);
       } catch (error) {
         console.error("[voice]", error);
         setProcessingState(false);
-        await speakResponse("I can't reach the server right now.");
+        await speakResponse(NO_SERVER);
       } finally {
         setTranscript("");
       }
     },
-    [router, speakResponse, stopListening],
+    [router, speakResponse, stopListening, submitAction],
   );
 
   handleRef.current = handleVoiceCommand;
@@ -285,7 +446,15 @@ const LiveAIVoice = () => {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    audioRef.current = new Audio();
+    mobileRef.current = isMobile();
+
+    const audio = new Audio();
+    // Without this iOS takes the audio full-screen, throwing the user out of
+    // the map they are being navigated around.
+    audio.setAttribute("playsinline", "true");
+    audio.preload = "auto";
+    audioRef.current = audio;
+
     synthRef.current = window.speechSynthesis;
     langRef.current = recalledLanguage();
 
@@ -293,8 +462,10 @@ const LiveAIVoice = () => {
     if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    // See `isMobile` — continuous capture is what jams the mic on phones.
+    recognition.continuous = !mobileRef.current;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
     recognition.lang = langRef.current;
 
     recognition.onresult = (event: any) => {
@@ -314,19 +485,35 @@ const LiveAIVoice = () => {
       // "no-speech" and "aborted" fire constantly in a hands-free session and
       // mean nothing — only stop for errors that actually end the session.
       if (event.error === "no-speech" || event.error === "aborted") return;
+
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         toast.error("Microphone access blocked. Allow mic access in your browser settings.");
-        setOpenState(false);
+        setMicBlocked(true);
+        setListeningState(false);
+        return;
       }
+
+      // Mobile networks drop the recogniser's own connection regularly. It is
+      // transient, and closing the assistant over it would be maddening — let
+      // `onend` bring the mic back.
+      if (event.error === "network") {
+        setListeningState(false);
+        return;
+      }
+
       setListeningState(false);
     };
 
-    // Chrome ends recognition after a stretch of silence even with
-    // `continuous: true`. Restarting is what makes the session hands-free.
+    // Recognition ends on its own after a stretch of silence — always on
+    // mobile, and on desktop Chrome too despite `continuous`. Restarting is
+    // what makes the session hands-free.
     recognition.onend = () => {
       setListeningState(false);
       if (openRef.current && !speakingRef.current && !processingRef.current) {
-        setTimeout(() => startListening(), 300);
+        setTimeout(
+          () => startListening(),
+          mobileRef.current ? RESTART_DELAY_MOBILE_MS : RESTART_DELAY_MS,
+        );
       }
     };
 
@@ -394,17 +581,29 @@ const LiveAIVoice = () => {
     }
     void audioRef.current?.play().catch(() => {});
 
+    sessionRef.current = crypto.randomUUID();
+    restartFailuresRef.current = 0;
+    setMicBlocked(false);
     setOpenState(true);
     setHistory([]);
     // Greet first; the mic opens when the greeting finishes.
     void speakResponse(GREETING);
   };
 
-  const status = processing
-    ? "Thinking…"
-    : speaking
-      ? "Speaking…"
-      : transcript || (listening ? "Listening…" : "Tap the mic to talk");
+  const status = micBlocked
+    ? "The mic didn't open. Tap it to try again."
+    : processing
+      ? "Thinking…"
+      : speaking
+        ? "Speaking…"
+        : transcript || (listening ? "Listening…" : "Tap the mic to talk");
+
+  /** Tapping the mic is a user gesture, which is what a phone wants to grant it. */
+  const retryMic = () => {
+    restartFailuresRef.current = 0;
+    setMicBlocked(false);
+    startListening();
+  };
 
   return (
     <>
@@ -420,8 +619,13 @@ const LiveAIVoice = () => {
         </div>
       )}
 
+      {/*
+        A phone gets a bottom sheet across the full width; anything larger keeps
+        the floating card. The safe-area padding keeps the controls clear of the
+        home indicator, which otherwise sits directly on top of the mic button.
+      */}
       {open && (
-        <div className="fixed bottom-24 right-5 z-[80] w-[min(360px,calc(100vw-32px))] rounded-3xl bg-black/60 p-6 backdrop-blur-2xl border border-white/10 shadow-2xl flex flex-col items-center gap-6 animate-in slide-in-from-bottom-5 fade-in-0 zoom-in-95">
+        <div className="fixed inset-x-0 bottom-0 z-[80] rounded-t-3xl border-t border-white/10 bg-black/70 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] backdrop-blur-2xl shadow-2xl flex flex-col items-center gap-5 animate-in slide-in-from-bottom-5 fade-in-0 sm:inset-x-auto sm:bottom-24 sm:right-5 sm:w-[min(360px,calc(100vw-32px))] sm:rounded-3xl sm:border sm:p-6 sm:pb-6 sm:gap-6 sm:zoom-in-95">
           <div className="flex w-full justify-between items-center">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -445,9 +649,9 @@ const LiveAIVoice = () => {
               ) : null}
 
               <button
-                onClick={listening ? stopListening : startListening}
+                onClick={micBlocked ? retryMic : listening ? stopListening : startListening}
                 aria-label={listening ? "Stop listening" : "Start listening"}
-                className={`relative z-10 flex h-24 w-24 items-center justify-center rounded-full border-4 shadow-xl transition-all duration-300 hover:scale-105 ${
+                className={`relative z-10 flex h-24 w-24 items-center justify-center rounded-full border-4 shadow-xl transition-all duration-300 active:scale-95 sm:hover:scale-105 ${
                   speaking
                     ? "border-pink-500/50 bg-gradient-to-br from-pink-500/20 to-purple-600/20 shadow-pink-500/20"
                     : listening
@@ -497,7 +701,7 @@ const LiveAIVoice = () => {
         <button
           onClick={toggleLiveAI}
           aria-label="Open Live AI assistant"
-          className="fixed bottom-5 right-5 z-[80] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-600 text-white shadow-[0_8px_32px_rgba(236,72,153,0.3)] transition-all duration-300 hover:scale-105 hover:shadow-[0_12px_40px_rgba(236,72,153,0.4)]"
+          className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-[80] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-600 text-white shadow-[0_8px_32px_rgba(236,72,153,0.3)] transition-all duration-300 active:scale-95 sm:hover:scale-105 sm:hover:shadow-[0_12px_40px_rgba(236,72,153,0.4)]"
         >
           <AudioLines size={28} />
         </button>

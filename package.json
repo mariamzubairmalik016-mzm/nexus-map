@@ -10,6 +10,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
+    "warm-voice": "node scripts/warm-voice-cache.mjs",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {

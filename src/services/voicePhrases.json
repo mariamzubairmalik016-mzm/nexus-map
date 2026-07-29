@@ -1,0 +1,15 @@
+{
+  "_comment": "Lines the assistant says over and over. Pre-rendered to public/voice by scripts/warm-voice-cache.mjs so they never spend Gemini's 10-per-day speech quota. Ordered by how often they are heard: a partial warm-up still covers the important ones. Edit a line here and it must be re-warmed, or it falls through to a live request.",
+  "greeting": "Hi, I'm your Nexus Map assistant. Tell me where you want to go.",
+  "phrases": [
+    "Sure, opening the map for you now.",
+    "Of course — where would you like to go?",
+    "How many days, and what's your budget?",
+    "Sorry, I didn't catch that. Could you say that again?",
+    "I couldn't find that button on this screen.",
+    "I can't reach the server right now.",
+    "جی بالکل، میں نقشہ کھول رہا ہوں۔",
+    "ضرور، آپ کہاں جانا چاہتے ہیں؟",
+    "معاف کیجیے، دوبارہ کہیے گا؟"
+  ]
+}

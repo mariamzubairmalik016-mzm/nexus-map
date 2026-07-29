@@ -20,14 +20,30 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
  * Tried in order. 3.1-flash-lite leads: it is the fastest model that still
  * follows a strict JSON contract, which matters when every reply has to be
  * spoken back within a second or two. The rest are same-shape stand-ins for
- * when its daily quota is gone.
+ * when its quota is gone.
+ *
+ * Every entry is checked to still answer. `gemini-2.5-flash-lite` and
+ * `gemini-2.5-flash` were in this list and both now return 404 — "no longer
+ * available to new users" — so the chain had two dead links at the end and
+ * effectively no fallback at all. The `-latest` aliases are here because they
+ * follow Google's current pointer rather than a version that can be retired.
  */
 const MODELS = [
   "gemini-3.1-flash-lite",
   "gemini-3.5-flash-lite",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
+  "gemini-flash-lite-latest",
+  "gemini-flash-latest",
 ];
+
+/**
+ * A 429 here is usually the per-minute limit, not the daily one — someone
+ * speaking quickly can trip it in a few sentences, and it clears in seconds.
+ * One short pause and a second attempt turns "I'm having trouble thinking
+ * right now" back into an answer.
+ */
+const RATE_LIMIT_RETRY_MS = 1200;
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type Options = {
   maxTokens?: number;
@@ -36,7 +52,12 @@ type Options = {
   json?: boolean;
 };
 
-/** One attempt against one model. Returns null so the caller can try the next. */
+/**
+ * One attempt against one model.
+ *
+ * Returns the reply, null to move on to the next model, or the sentinel
+ * "rate-limited" to say this model is fine and just needs a moment.
+ */
 const ask = async (
   model: string,
   contents: unknown[],
@@ -59,13 +80,13 @@ const ask = async (
             ...(options.json ? { responseMimeType: "application/json" } : {}),
           },
         }),
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(10_000),
       },
     );
 
     if (!response.ok) {
       console.warn(`[llm] ${model} → ${response.status}: ${(await response.text()).slice(0, 200)}`);
-      return null;
+      return response.status === 429 ? "rate-limited" : null;
     }
 
     const payload = await response.json();
@@ -108,9 +129,24 @@ export const chatComplete = async (
     }
   }
 
+  let sawRateLimit = false;
+
   for (const model of MODELS) {
     const reply = await ask(model, contents, systemInstruction, options, apiKey);
+    if (reply === "rate-limited") {
+      sawRateLimit = true;
+      continue;
+    }
     if (reply) return reply;
+  }
+
+  // Every model that was willing to answer was merely throttled. Wait out the
+  // per-minute window once and try the preferred model again, rather than
+  // telling the user the assistant cannot think.
+  if (sawRateLimit) {
+    await pause(RATE_LIMIT_RETRY_MS);
+    const retry = await ask(MODELS[0], contents, systemInstruction, options, apiKey);
+    if (retry && retry !== "rate-limited") return retry;
   }
 
   return null;

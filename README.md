@@ -60,11 +60,34 @@ pipeline the search box uses, so the assistant never invents coordinates. The
 resolved place is passed to the map or planner as query parameters, which those
 pages act on automatically — no tapping required.
 
+It asks before it guesses. A trip plan needs a destination, a length and a
+budget, so if you have not given those it asks for them one at a time, then
+builds the plan. Everything else — routes, searches, tourism — runs immediately.
+
+#### Speech, and the quota that governs it
+
 Speech is `gemini-3.1-flash-tts-preview`, falling back to
-`gemini-2.5-flash-preview-tts` when the daily free-tier cap (10 requests) runs
-out; identical audio is cached, so repeated lines cost no quota. If every model
-is exhausted the browser's built-in speech takes over, which sounds noticeably
-robotic — that is the signal that the Gemini quota is gone, not a bug.
+`gemini-2.5-flash-preview-tts` and then `gemini-2.5-pro-preview-tts`.
+
+The free tier allows **ten requests per day, per model**
+(`GenerateRequestsPerDayPerProjectPerModel-FreeTier`) — roughly twenty spoken
+sentences a day in total. Three things stretch that:
+
+- **Pre-rendered lines.** `npm run warm-voice` renders the greeting and the
+  handful of phrases the assistant repeats into `public/voice`, which ships
+  with the app and costs nothing thereafter. Run it once; it resumes where it
+  stopped if the quota runs out mid-way.
+- **Caching.** Anything generated at runtime is kept in memory and in the
+  temp directory, so a repeated sentence is never paid for twice.
+- **A pinned model.** `GEMINI_TTS_MODEL` stops the fallback chain from
+  switching models — "Charon" has a different timbre on each, so falling
+  through mid-conversation audibly changes the voice. Each conversation also
+  pins whichever model it started on, so a quota resetting mid-chat cannot
+  change the voice underneath the user.
+
+When every model is exhausted the browser's built-in speech takes over. It
+sounds noticeably robotic — that is the signal that the Gemini quota is gone,
+not a bug. Enabling billing on the API key removes the cap entirely.
 
 ### Google sign-in
 

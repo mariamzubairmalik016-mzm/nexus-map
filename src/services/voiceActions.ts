@@ -13,6 +13,13 @@
  * will happily invent coordinates that land in a field.
  */
 
+import { ALERT_TYPES, type AlertSeverity, type RoadAlertType } from "../types/roadAlerts";
+
+export { ALERT_TYPES };
+
+/** Mirrors `AlertSeverity` in `src/types/roadAlerts.ts`. */
+export const ALERT_SEVERITIES = ["low", "medium", "high", "critical"] as const;
+
 export type PageKey =
   | "home"
   | "map"
@@ -71,16 +78,67 @@ export const TRIP_TYPES = ["Family", "Solo", "Couple", "Friends", "Business", "A
 export const TRANSPORTS = ["Car", "Bus", "Train", "Flight", "Motorcycle"] as const;
 export const CURRENCIES = ["PKR", "USD", "SAR", "AED", "GBP", "EUR"] as const;
 
-/** Case-insensitive match against an allow-list, else the fallback. */
+/**
+ * What "the nearest X" can mean, mapped to Geoapify's category strings.
+ *
+ * These are a real category search, not a place-name lookup. Geocoding the
+ * words "petrol pump" finds somewhere *called* that — it once answered with
+ * Cantonment Railway Station — whereas this returns actual fuel stations
+ * ordered by distance. Every string below was checked against the live API;
+ * `service.fuel` looks right and is rejected, the working name is
+ * `service.vehicle.fuel`.
+ */
+export const NEARBY_CATEGORIES = {
+  fuel: "service.vehicle.fuel",
+  charging_station: "service.vehicle.charging_station",
+  hospital: "healthcare.hospital",
+  pharmacy: "healthcare.pharmacy",
+  police: "service.police",
+  atm: "service.financial.atm",
+  bank: "service.financial.bank",
+  restaurant: "catering.restaurant",
+  cafe: "catering.cafe",
+  hotel: "accommodation.hotel",
+  supermarket: "commercial.supermarket",
+  market: "commercial.marketplace",
+  parking: "parking",
+  mosque: "religion.place_of_worship.islam",
+  airport: "airport",
+  bus_station: "public_transport.bus",
+} as const;
+
+export type NearbyCategory = keyof typeof NEARBY_CATEGORIES;
+
+/** Mirrors `TRAVEL_MOODS` / `TOURISM_CATEGORIES` in `src/types/tourism.ts`. */
+export const TRAVEL_MOODS = [
+  "relax", "adventure", "romantic", "family", "food", "photography",
+  "history", "beach", "snow", "nature", "luxury", "budget",
+] as const;
+
+export const TOURISM_CATEGORIES = [
+  "hotel", "resort", "restaurant", "cafe", "museum", "historical", "unesco",
+  "beach", "park", "waterfall", "lake", "forest", "mountain", "camping",
+  "hiking", "shopping_mall", "market", "fuel_station", "mosque", "hospital",
+  "police", "atm", "bus_station", "railway", "airport", "charging_station",
+  "rest_area",
+] as const;
+
+/** Case-insensitive match against an allow-list, or undefined if there is none. */
+export const matchOption = <T extends string>(
+  value: unknown,
+  options: readonly T[],
+): T | undefined => {
+  if (typeof value !== "string") return undefined;
+  const wanted = value.trim().toLowerCase();
+  return options.find((option) => option.toLowerCase() === wanted);
+};
+
+/** As `matchOption`, but for fields that must always carry a value. */
 export const snapToOption = <T extends string>(
   value: unknown,
   options: readonly T[],
   fallback: T,
-): T => {
-  if (typeof value !== "string") return fallback;
-  const wanted = value.trim().toLowerCase();
-  return options.find((option) => option.toLowerCase() === wanted) ?? fallback;
-};
+): T => matchOption(value, options) ?? fallback;
 
 /**
  * What the model may return.
@@ -111,10 +169,51 @@ export type VoiceAction =
       transport?: string;
     }
   | { type: "SEARCH"; query: string }
-  | { type: "NEARBY"; category: string }
+  | { type: "NEARBY"; category: NearbyCategory }
+  | {
+      type: "FIND_TOURISM";
+      /** A city or place name. Optional when a mood or category is given. */
+      query?: string;
+      mood?: (typeof TRAVEL_MOODS)[number];
+      category?: (typeof TOURISM_CATEGORIES)[number];
+    }
   | { type: "SCROLL"; direction: "up" | "down" | "top" | "bottom" }
   | { type: "CLICK"; label: string }
-  | { type: "BACK" };
+  | { type: "BACK" }
+  /**
+   * Publishes a hazard at the user's current position for everyone else to
+   * see. Confirmed before it is sent — see `NEEDS_CONFIRMATION`.
+   */
+  | {
+      type: "REPORT_ALERT";
+      alertType: RoadAlertType;
+      severity: AlertSeverity;
+      description: string;
+    }
+  /** Raises an emergency alert at the user's current position. Also confirmed. */
+  | { type: "SOS"; message?: string };
+
+/**
+ * Actions that change something other people see, or that summon help.
+ *
+ * These are never fired the first time they are decided. Speech recognition
+ * mishears, and the cost of a mistake here is not a wrong page — it is a false
+ * accident report shown to every other driver, or an emergency alert nobody
+ * meant to raise. The assistant states what it is about to do and waits to be
+ * told to go ahead; `LiveAIVoice` enforces that regardless of what the model
+ * decides, by refusing to submit an action it did not offer on the turn before.
+ */
+export const NEEDS_CONFIRMATION = ["REPORT_ALERT", "SOS"] as const;
+
+export const needsConfirmation = (action: VoiceAction | null | undefined): boolean =>
+  !!action && (NEEDS_CONFIRMATION as readonly string[]).includes(action.type);
+
+/** True when two actions are the same request, so a confirmation can be matched to its offer. */
+export const sameAction = (a: VoiceAction | null, b: VoiceAction | null): boolean => {
+  if (!a || !b || a.type !== b.type) return false;
+  if (a.type === "REPORT_ALERT" && b.type === "REPORT_ALERT") return a.alertType === b.alertType;
+  return true;
+};
 
 /** Written into the system prompt so the model sees exactly these options. */
 export const ACTION_GUIDE = `
@@ -129,11 +228,26 @@ export const ACTION_GUIDE = `
                                         "currency" is one of: ${CURRENCIES.join(", ")}.
                                         "days" is 1-14.
 4. SEARCH    — find a place on the map.{ "type": "SEARCH", "query": "Liberty Market Lahore" }
-5. NEARBY    — nearby of a category.   { "type": "NEARBY", "category": "petrol pump" }
-6. SCROLL    — move the page.          { "type": "SCROLL", "direction": "down" }
-7. CLICK     — press a visible button. { "type": "CLICK", "label": "Start Navigation" }
-8. BACK      — previous page.          { "type": "BACK" }
-9. NONE      — just answer, no action. { "type": "NONE" }
+5. NEARBY    — the closest one of something. { "type": "NEARBY", "category": "fuel" }
+                                        "category" MUST be one of: ${Object.keys(NEARBY_CATEGORIES).join(", ")}.
+                                        Map what the user said onto one of those — "petrol pump",
+                                        "gas station" and "CNG" are all "fuel". If nothing fits,
+                                        use SEARCH instead.
+6. FIND_TOURISM — tourist places, attractions, hotels, things to do.
+                                        { "type": "FIND_TOURISM", "query": "Skardu", "mood": "adventure", "category": "hotel" }
+                                        All three are optional, but give at least one.
+                                        "mood" is one of: ${TRAVEL_MOODS.join(", ")}.
+                                        "category" is one of: ${TOURISM_CATEGORIES.join(", ")}.
+7. SCROLL    — move the page.          { "type": "SCROLL", "direction": "down" }
+8. CLICK     — press a visible button. { "type": "CLICK", "label": "Start Navigation" }
+9. BACK      — previous page.          { "type": "BACK" }
+10. REPORT_ALERT — warn other drivers about a hazard where the user is standing.
+                                        { "type": "REPORT_ALERT", "alertType": "accident", "severity": "high", "description": "Two cars blocking the left lane" }
+                                        "alertType" is one of: ${ALERT_TYPES.join(", ")}.
+                                        "severity" is one of: ${ALERT_SEVERITIES.join(", ")}.
+                                        Write the description from what the user said; keep it factual.
+11. SOS      — raise an emergency alert. { "type": "SOS", "message": "Car broke down, I'm alone" }
+12. NONE     — answer or ask a question, change nothing. { "type": "NONE" }
 `.trim();
 
 /** The page list, formatted for the prompt. */

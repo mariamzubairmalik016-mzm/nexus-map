@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 export const dynamic = "force-dynamic";
 
@@ -22,15 +26,75 @@ export const dynamic = "force-dynamic";
  */
 
 /**
- * Tried in order. 3.1 is the best sounding but has the 10/day cap, so 2.5
- * carries the session once that runs out; both share the same voice catalog,
- * so the voice does not change when we fall through.
+ * Tried in order. 3.1 sounds best but is capped at 10 requests a day; 2.5
+ * carries the session once that runs out.
+ *
+ * They share the voice *catalog*, not the voice itself — "Charon" on 2.5 has a
+ * noticeably different timbre from "Charon" on 3.1. Falling through therefore
+ * changes how the assistant sounds mid-conversation, which is jarring, so a
+ * model that fails is put on cooldown and the working one is kept for the rest
+ * of the session rather than being retried on every line.
  */
 const TTS_MODELS = [
   "gemini-3.1-flash-tts-preview",
   "gemini-2.5-flash-preview-tts",
   "gemini-2.5-pro-preview-tts",
 ];
+
+/**
+ * How long a failed model is skipped.
+ *
+ * The free-tier cap that bites here is `GenerateRequestsPerDayPerProjectPerModel`
+ * — ten requests per day, per model. Google's `retryDelay` on that error says
+ * about eleven seconds, which is wrong in any useful sense: the quota will not
+ * return until the day rolls over. Retrying on Google's word produces a voice
+ * that flips between models every few sentences, which is the flaw this cooldown
+ * exists to prevent. An hour is long enough to outlast any session and short
+ * enough to notice a daily reset.
+ */
+const DAILY_QUOTA_COOLDOWN_MS = 60 * 60 * 1000;
+const TRANSIENT_COOLDOWN_MS = 60 * 1000;
+
+const cooldowns = new Map<string, number>();
+
+const isAvailable = (model: string) => (cooldowns.get(model) ?? 0) < Date.now();
+
+const benchModel = (model: string, daily: boolean) => {
+  cooldowns.set(model, Date.now() + (daily ? DAILY_QUOTA_COOLDOWN_MS : TRANSIENT_COOLDOWN_MS));
+};
+
+/**
+ * The model each open conversation is speaking with.
+ *
+ * Cooldowns alone cannot guarantee a steady voice: a daily quota resetting
+ * halfway through a conversation would promote the assistant back to a better
+ * model and visibly change how it sounds mid-sentence. Pinning per session
+ * means the voice can only change if the pinned model actually stops working.
+ */
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const sessionModels = new Map<string, { model: string; expires: number }>();
+
+const pinnedFor = (session: string | null): string | null => {
+  if (!session) return null;
+  const entry = sessionModels.get(session);
+  if (!entry || entry.expires < Date.now()) {
+    if (entry) sessionModels.delete(session);
+    return null;
+  }
+  return entry.model;
+};
+
+const pinSession = (session: string | null, model: string) => {
+  if (!session) return;
+  // Bound the map: a long-running server would otherwise accumulate one entry
+  // per visitor forever.
+  if (sessionModels.size > 500) {
+    for (const [key, entry] of sessionModels) {
+      if (entry.expires < Date.now()) sessionModels.delete(key);
+    }
+  }
+  sessionModels.set(session, { model, expires: Date.now() + SESSION_TTL_MS });
+};
 
 /**
  * Default speaker. Charon is the deep, warm male voice in Gemini's catalog —
@@ -60,6 +124,48 @@ const remember = (key: string, value: { audio: Buffer; model: string }) => {
     if (oldest !== undefined) cache.delete(oldest);
   }
   cache.set(key, value);
+};
+
+/**
+ * Two disk caches sit behind the in-memory one, because ten requests a day is
+ * not a budget you can afford to spend twice on the same sentence.
+ *
+ * `public/voice` holds lines rendered ahead of time by
+ * `scripts/warm-voice-cache.mjs` and shipped with the app — the greeting and
+ * the handful of confirmations the assistant repeats constantly. It is read
+ * only, which is what makes it work on a host with a read-only filesystem.
+ *
+ * The temp directory catches everything else generated at runtime, so a
+ * restart does not throw away a session's worth of audio. It is per-instance
+ * and disposable; losing it costs a regeneration, nothing more.
+ */
+const SHIPPED_DIR = join(process.cwd(), "public", "voice");
+const RUNTIME_DIR = join(tmpdir(), "nexus-voice");
+
+/** Same inputs must always produce the same filename, in the app and in the script. */
+const fileFor = (model: string, voice: string, text: string) =>
+  `${createHash("sha256").update(`${model}::${voice}::${text}`).digest("hex").slice(0, 32)}.wav`;
+
+const readFromDisk = async (name: string): Promise<Buffer | null> => {
+  for (const directory of [SHIPPED_DIR, RUNTIME_DIR]) {
+    try {
+      return await readFile(join(directory, name));
+    } catch {
+      // Not in this one — try the next, then fall through to generating it.
+    }
+  }
+  return null;
+};
+
+const writeToDisk = async (name: string, audio: Buffer) => {
+  try {
+    await mkdir(RUNTIME_DIR, { recursive: true });
+    await writeFile(join(RUNTIME_DIR, name), audio);
+  } catch (error) {
+    // A read-only or full disk must not fail the request — the audio is
+    // already in memory and on its way to the browser.
+    console.warn("[tts] could not persist audio:", (error as Error).message);
+  }
 };
 
 /** Pulls `rate=NNNNN` out of `audio/L16;codec=pcm;rate=24000`. */
@@ -113,12 +219,16 @@ const synthesise = async (
             },
           },
         }),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(15_000),
       },
     );
 
     if (!response.ok) {
-      console.warn(`[tts] ${model} → ${response.status}: ${(await response.text()).slice(0, 200)}`);
+      const detail = await response.text();
+      console.warn(`[tts] ${model} → ${response.status}: ${detail.slice(0, 200)}`);
+      // Google labels the quota it refused on. A per-day cap is out for the
+      // rest of the day; a per-minute one is worth retrying shortly.
+      benchModel(model, response.status === 429 && /PerDay/i.test(detail));
       return null;
     }
 
@@ -126,12 +236,14 @@ const synthesise = async (
     const part = payload?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
     if (!part?.data) {
       console.warn(`[tts] ${model} returned no audio`);
+      benchModel(model, false);
       return null;
     }
 
     return pcmToWav(Buffer.from(part.data, "base64"), sampleRateFrom(part.mimeType));
   } catch (error) {
     console.warn(`[tts] ${model} failed:`, (error as Error).message);
+    benchModel(model, false);
     return null;
   }
 };
@@ -154,35 +266,75 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Gemini API key not configured", { status: 500 });
     }
 
-    const key = `${voice}::${text}`;
-    const hit = cache.get(key);
-    if (hit) {
-      // Re-insert so the LRU treats a reused line as fresh.
-      cache.delete(key);
-      cache.set(key, hit);
-      return new NextResponse(new Uint8Array(hit.audio), {
-        headers: {
-          "Content-Type": "audio/wav",
-          "X-Nexus-Voice": voice,
-          "X-Nexus-TTS-Model": hit.model,
-          "X-Nexus-TTS-Cache": "hit",
-        },
-      });
-    }
+    const session = typeof body?.session === "string" ? body.session : null;
 
-    for (const model of TTS_MODELS) {
-      const audio = await synthesise(model, text, voice, apiKey);
-      if (!audio) continue;
+    // Order of authority: an explicit env pin, then whatever this conversation
+    // is already speaking with, then anything not on cooldown. If everything is
+    // benched, try the whole chain anyway rather than going silent.
+    const envPin = process.env.GEMINI_TTS_MODEL;
+    const sessionPin = pinnedFor(session);
+    const available = TTS_MODELS.filter(isAvailable);
 
-      remember(key, { audio, model });
-      return new NextResponse(new Uint8Array(audio), {
+    const models = envPin
+      ? [envPin]
+      : sessionPin
+        ? // Keep the pinned model first, but leave the others as a fallback in
+          // case it has since stopped working.
+          [sessionPin, ...TTS_MODELS.filter((model) => model !== sessionPin && isAvailable(model))]
+        : available.length
+          ? available
+          : TTS_MODELS;
+
+    const respond = (audio: Buffer, model: string, source: string) =>
+      new NextResponse(new Uint8Array(audio), {
         headers: {
           "Content-Type": "audio/wav",
           "X-Nexus-Voice": voice,
           "X-Nexus-TTS-Model": model,
-          "X-Nexus-TTS-Cache": "miss",
+          "X-Nexus-TTS-Cache": source,
         },
       });
+
+    /**
+     * Which models' cached audio may be used.
+     *
+     * Cache entries are keyed by model as well as voice, because "Charon" does
+     * not sound the same on every model. Once a conversation has settled on
+     * one, only that one's audio may be replayed — otherwise a cache hit would
+     * change the voice mid-conversation, the very thing the pin prevents.
+     * Before a conversation has settled, any cached model is fair game, and
+     * playing it settles the conversation on that model.
+     */
+    const cacheable = envPin || sessionPin ? [models[0]] : models;
+
+    for (const model of cacheable) {
+      const key = `${model}::${voice}::${text}`;
+
+      const inMemory = cache.get(key);
+      if (inMemory) {
+        // Re-insert so the LRU treats a reused line as fresh.
+        cache.delete(key);
+        cache.set(key, inMemory);
+        pinSession(session, model);
+        return respond(inMemory.audio, model, "memory");
+      }
+
+      const onDisk = await readFromDisk(fileFor(model, voice, text));
+      if (onDisk) {
+        remember(key, { audio: onDisk, model });
+        pinSession(session, model);
+        return respond(onDisk, model, "disk");
+      }
+    }
+
+    for (const model of models) {
+      const audio = await synthesise(model, text, voice, apiKey);
+      if (!audio) continue;
+
+      remember(`${model}::${voice}::${text}`, { audio, model });
+      pinSession(session, model);
+      void writeToDisk(fileFor(model, voice, text), audio);
+      return respond(audio, model, "miss");
     }
 
     // Every model refused. The client falls back to the browser voice; say why

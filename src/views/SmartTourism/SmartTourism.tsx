@@ -1,5 +1,6 @@
 "use client";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   MapPin,
@@ -49,9 +50,20 @@ const MOOD_ICONS: Record<string, LucideIcon> = {
 };
 
 const SmartTourism = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeMood, setActiveMood] = useState<TravelMood | null>(null);
-  const [activeCategory, setActiveCategory] = useState<TourismCategory | null>(null);
+  // The Live AI assistant opens this page with the search already described in
+  // the URL — "?q=Skardu&mood=adventure" — and the effect below runs it, so a
+  // spoken request lands on results rather than on an empty search box.
+  const searchParams = useSearchParams();
+
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
+  const [activeMood, setActiveMood] = useState<TravelMood | null>(() => {
+    const mood = searchParams.get("mood") as TravelMood | null;
+    return mood && TRAVEL_MOODS.includes(mood) ? mood : null;
+  });
+  const [activeCategory, setActiveCategory] = useState<TourismCategory | null>(() => {
+    const category = searchParams.get("category") as TourismCategory | null;
+    return category && TOURISM_CATEGORIES.includes(category) ? category : null;
+  });
   const [results, setResults] = useState<TourismPOI[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPoi, setSelectedPoi] = useState<TourismPOI | null>(null);
@@ -95,6 +107,23 @@ const SmartTourism = () => {
       setLoading(false);
     }
   }, [searchQuery, activeMood, activeCategory]);
+
+  /**
+   * Run the search described by the URL, once.
+   *
+   * The state above is seeded from the same parameters on first render, so
+   * `handleSearch` already closes over the right values by the time this runs.
+   * Guarded by a ref: re-running would stamp on whatever the user has typed
+   * since.
+   */
+  const autoSearched = useRef(false);
+  useEffect(() => {
+    if (autoSearched.current) return;
+    if (!searchParams.get("q") && !searchParams.get("mood") && !searchParams.get("category")) return;
+
+    autoSearched.current = true;
+    void handleSearch();
+  }, [searchParams, handleSearch]);
 
   // Budget analysis
   const handleBudgetAnalysis = () => {
