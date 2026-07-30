@@ -281,6 +281,33 @@ export const communityComments = pgTable(
   }),
 );
 
+/**
+ * Rendered speech, kept where every instance can reach it.
+ *
+ * Gemini's free tier allows roughly a hundred speech requests a day, so a line
+ * must never be rendered twice. Two caches already existed and neither
+ * survives: the in-memory LRU dies with the instance, and the temp directory
+ * is per-instance and wiped on deploy. Only `public/voice` was durable, and
+ * that ships read-only with the build, so nothing rendered at runtime could
+ * ever join it.
+ *
+ * A row here is permanent. The first time a sentence is spoken it is rendered
+ * once in the background and stored; every instance, and every deploy after,
+ * serves it from here for free.
+ *
+ * Audio is base64 rather than bytea to keep the driver path simple — the size
+ * penalty is a third, on rows of a couple of hundred kilobytes.
+ */
+export const voiceCache = pgTable("voice_cache", {
+  /** sha256(model::voice::text) — the same key the on-disk cache uses. */
+  id: text("id").primaryKey(),
+  model: varchar("model", { length: 64 }).notNull(),
+  voice: varchar("voice", { length: 32 }).notNull(),
+  phrase: text("phrase").notNull(),
+  audioBase64: text("audio_base64").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const sosAlerts = pgTable("sos_alerts", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),

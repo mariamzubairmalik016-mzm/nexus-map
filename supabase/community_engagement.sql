@@ -38,3 +38,18 @@ CREATE TABLE IF NOT EXISTS community_comments (
 
 CREATE INDEX IF NOT EXISTS community_comments_target_idx
   ON community_comments (target_type, target_id);
+
+-- Rendered speech, shared by every server instance.
+--
+-- The in-memory cache dies with the instance and the temp directory is wiped
+-- on deploy, so a line rendered at runtime was re-rendered on the next cold
+-- start — spending a daily quota of roughly a hundred requests on sentences
+-- already produced. A row here is permanent.
+CREATE TABLE IF NOT EXISTS voice_cache (
+  id           text PRIMARY KEY,          -- sha256(model::voice::text)
+  model        varchar(64) NOT NULL,
+  voice        varchar(32) NOT NULL,
+  phrase       text NOT NULL,
+  audio_base64 text NOT NULL,
+  created_at   timestamp NOT NULL DEFAULT now()
+);

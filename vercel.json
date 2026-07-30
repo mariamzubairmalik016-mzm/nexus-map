@@ -1,4 +1,11 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "crons": [
+    {
+      "//": "Gemini's daily speech quota rolls over at midnight Pacific — 07:00 UTC under PDT, 08:00 under PST. 08:30 clears both, with margin for the scheduler running late.",
+      "path": "/api/cron/warm-voice",
+      "schedule": "30 8 * * *"
+    }
+  ]
 }

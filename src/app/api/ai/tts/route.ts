@@ -3,6 +3,10 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { eq } from "drizzle-orm";
+
+import { db } from "../../../../db";
+import { voiceCache } from "../../../../db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -160,6 +164,42 @@ const readFromDisk = async (name: string): Promise<Buffer | null> => {
     }
   }
   return null;
+};
+
+/**
+ * The durable cache.
+ *
+ * Memory dies with the instance and the temp directory is wiped on deploy, so
+ * a line rendered at runtime used to be re-rendered on every cold start —
+ * spending a daily budget of roughly a hundred requests on sentences already
+ * produced. A row survives both, and every instance shares it.
+ */
+const readFromDb = async (id: string): Promise<Buffer | null> => {
+  try {
+    const rows = await db.select().from(voiceCache).where(eq(voiceCache.id, id)).limit(1);
+    return rows[0] ? Buffer.from(rows[0].audioBase64, "base64") : null;
+  } catch {
+    // No database configured, or it is unreachable — speech must not fail for
+    // that, so treat it as a miss.
+    return null;
+  }
+};
+
+const writeToDb = async (
+  id: string,
+  model: string,
+  voice: string,
+  phrase: string,
+  audio: Buffer,
+) => {
+  try {
+    await db
+      .insert(voiceCache)
+      .values({ id, model, voice, phrase, audioBase64: audio.toString("base64") })
+      .onConflictDoNothing();
+  } catch (error) {
+    console.warn("[tts] could not persist audio to the database:", (error as Error).message);
+  }
 };
 
 const writeToDisk = async (name: string, audio: Buffer) => {
@@ -334,11 +374,20 @@ export async function POST(req: NextRequest) {
         return respond(inMemory.audio, model, "memory");
       }
 
-      const onDisk = await readFromDisk(fileFor(model, voice, text));
+      const name = fileFor(model, voice, text);
+
+      const onDisk = await readFromDisk(name);
       if (onDisk) {
         remember(key, { audio: onDisk, model });
         pinSession(session, model);
         return respond(onDisk, model, "disk");
+      }
+
+      const inDb = await readFromDb(name);
+      if (inDb) {
+        remember(key, { audio: inDb, model });
+        pinSession(session, model);
+        return respond(inDb, model, "db");
       }
     }
 
@@ -365,8 +414,12 @@ export async function POST(req: NextRequest) {
         for (const model of models) {
           const audio = await synthesise(model, text, voice, apiKey);
           if (!audio) continue;
+          const name = fileFor(model, voice, text);
           remember(`${model}::${voice}::${text}`, { audio, model });
-          await writeToDisk(fileFor(model, voice, text), audio);
+          await Promise.all([
+            writeToDb(name, model, voice, text, audio),
+            writeToDisk(name, audio),
+          ]);
           return;
         }
       });
@@ -381,9 +434,11 @@ export async function POST(req: NextRequest) {
       const audio = await synthesise(model, text, voice, apiKey);
       if (!audio) continue;
 
+      const name = fileFor(model, voice, text);
       remember(`${model}::${voice}::${text}`, { audio, model });
       pinSession(session, model);
-      void writeToDisk(fileFor(model, voice, text), audio);
+      void writeToDb(name, model, voice, text, audio);
+      void writeToDisk(name, audio);
       return respond(audio, model, "miss");
     }
 
