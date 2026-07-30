@@ -76,8 +76,8 @@ const isMobile = () =>
  * Restarting instantly on a phone races the audio session teardown and throws;
  * a beat of breathing room makes it reliable.
  */
-const RESTART_DELAY_MS = 500;
-const RESTART_DELAY_MOBILE_MS = 900;
+const RESTART_DELAY_MS = 250;
+const RESTART_DELAY_MOBILE_MS = 700;
 
 /** Give up relaunching the mic after this many consecutive failures. */
 const MAX_RESTART_FAILURES = 4;
@@ -91,7 +91,14 @@ const MAX_RESTART_FAILURES = 4;
  * that answers immediately.
  */
 const LIVE_TIMEOUT_MS = 25_000;
-const TTS_TIMEOUT_MS = 9_000;
+/**
+ * The speech request is now a cache lookup, not a generation — the server
+ * answers 204 straight away when a line has not been rendered yet. A couple of
+ * seconds is therefore a generous allowance for a round trip, and keeping it
+ * tight means even a stalled network costs a moment rather than the nine
+ * seconds this used to allow.
+ */
+const TTS_TIMEOUT_MS = 2_500;
 
 const GREETING = voicePhrases.greeting;
 
@@ -334,12 +341,15 @@ const LiveAIVoice = () => {
       if (audio) audio.pause();
       synthRef.current?.cancel();
 
+      // Distinguishes "not cached yet" from a real TTS failure below.
+      let notCached = false;
+
       const done = () => {
         setSpeakingState(false);
         // Gap so the tail of the reply does not land in the next capture, and
         // so a phone has time to release the audio session before the mic
         // claims it.
-        scheduleRestart(mobileRef.current ? RESTART_DELAY_MOBILE_MS : 350);
+        scheduleRestart(mobileRef.current ? RESTART_DELAY_MOBILE_MS : RESTART_DELAY_MS);
       };
 
       try {
@@ -350,15 +360,25 @@ const LiveAIVoice = () => {
         const response = await fetch("/api/ai/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, session: sessionRef.current }),
-          // Generating a novel sentence takes a few seconds and an overloaded
-          // model can take far longer. Without a deadline the assistant sat
-          // mute with the mic closed for as long as the upstream took — the
-          // "it heard me and then nothing happened for ages" complaint. Past
-          // this, the browser voice answers immediately instead.
+          // `cachedOnly` is the whole latency fix. Measured on production:
+          // generating a novel line took 4.4s, and after the free tier's
+          // ten-per-day cap every attempt failed several seconds later. Asking
+          // only for audio that already exists means a reply is either
+          // instant Gemini audio or an instant browser voice — never a wait.
+          // The server still renders the line in the background, so repeated
+          // sentences upgrade themselves.
+          body: JSON.stringify({ text, session: sessionRef.current, cachedOnly: true }),
           signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
         });
 
+        // 204 = not cached yet. Speak it ourselves rather than wait. This is
+        // an ordinary outcome, not a failure, so it must NOT pin the session
+        // to the browser voice — the next line may well be a cached one, and
+        // pinning would waste the warmed audio for the rest of the session.
+        if (response.status === 204) {
+          notCached = true;
+          throw new Error("not cached");
+        }
         if (!response.ok) throw new Error(`TTS ${response.status}`);
 
         const blob = await response.blob();
@@ -379,8 +399,12 @@ const LiveAIVoice = () => {
 
         await audio.play();
       } catch (error) {
-        console.warn("[voice] Gemini TTS unavailable, using browser voice:", error);
-        usingBrowserVoiceRef.current = true;
+        // Only a genuine failure disables Gemini for the session. A cache miss
+        // is the normal path now and leaves it enabled.
+        if (!notCached) {
+          console.warn("[voice] Gemini TTS unavailable, using browser voice:", error);
+          usingBrowserVoiceRef.current = true;
+        }
 
         const synth = synthRef.current;
         if (!synth) {

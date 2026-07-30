@@ -267,6 +267,8 @@ export async function POST(req: NextRequest) {
     }
 
     const session = typeof body?.session === "string" ? body.session : null;
+    /** Return only what is already cached; never block on generation. */
+    const cachedOnly = body?.cachedOnly === true;
 
     // Order of authority: an explicit env pin, then whatever this conversation
     // is already speaking with, then anything not on cooldown. If everything is
@@ -325,6 +327,37 @@ export async function POST(req: NextRequest) {
         pinSession(session, model);
         return respond(onDisk, model, "disk");
       }
+    }
+
+    /**
+     * Cache-only mode — the assistant's default.
+     *
+     * Generating a novel sentence measured at 4.4s on this deployment, and
+     * once the free tier's ten-per-day cap is spent every attempt burns
+     * several more seconds before failing. Either way the user sat in silence
+     * waiting for audio, which is what "it gets stuck" was.
+     *
+     * So the live path never waits for generation. A miss returns 204
+     * immediately and the browser speaks the line itself — instantly, and with
+     * no quota. Generation still starts here in the background, so the same
+     * sentence is real Gemini audio the next time it comes up, and the common
+     * lines settle into the cache on their own within a few conversations.
+     */
+    if (cachedOnly) {
+      void (async () => {
+        for (const model of models) {
+          const audio = await synthesise(model, text, voice, apiKey);
+          if (!audio) continue;
+          remember(`${model}::${voice}::${text}`, { audio, model });
+          void writeToDisk(fileFor(model, voice, text), audio);
+          return;
+        }
+      })();
+
+      return new NextResponse(null, {
+        status: 204,
+        headers: { "X-Nexus-TTS-Cache": "miss-deferred" },
+      });
     }
 
     for (const model of models) {
