@@ -25,6 +25,7 @@ import { motion } from "framer-motion";
 import ReviewPanel from "../../components/tourism/ReviewPanel";
 import toast from "react-hot-toast";
 
+import { useGeolocation } from "../../hooks/useGeolocation";
 import { tourismDiscoveryService } from "../../services/tourismDiscoveryService";
 import type {
   TourismPOI,
@@ -78,6 +79,22 @@ const SmartTourism = () => {
   const [budgetResult, setBudgetResult] = useState<BudgetAnalysis | null>(null);
   const [cityDiscovery, setCityDiscovery] = useState<CityDiscovery | null>(null);
 
+  /**
+   * The user's position, watched live.
+   *
+   * The API needs a centre to search around; without one it can only return
+   * the dozen curated rows, which is why most category chips came back empty —
+   * "restaurant", "waterfall" and most of the other thirty-odd are not in that
+   * table at all. With a position, every category answers from live data.
+   */
+  const geo = useGeolocation();
+  const { getCurrentLocation } = geo;
+  const coords = geo.coordinates;
+
+  useEffect(() => {
+    void getCurrentLocation();
+  }, [getCurrentLocation]);
+
   // Search
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim() && !activeMood && !activeCategory) {
@@ -91,6 +108,10 @@ const SmartTourism = () => {
         category: activeCategory || undefined,
         mood: activeMood || undefined,
         limit: 50,
+        // Only used when there is no city or free-text query to resolve; a
+        // typed destination still wins over where the user happens to be.
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
       });
       setResults(data);
 
@@ -106,7 +127,7 @@ const SmartTourism = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, activeMood, activeCategory]);
+  }, [searchQuery, activeMood, activeCategory, coords]);
 
   /**
    * Run the search described by the URL, once.
@@ -116,6 +137,31 @@ const SmartTourism = () => {
    * Guarded by a ref: re-running would stamp on whatever the user has typed
    * since.
    */
+  /**
+   * Selecting a mood or a category searches immediately.
+   *
+   * Both chips only ever set state — they highlighted, and nothing else
+   * happened until "Discover" was pressed separately. That is what made the
+   * page look half-broken: a search by city returned results, a tap on
+   * "Restaurant" appeared to do nothing at all.
+   *
+   * Held in a ref so this reacts to the choice alone; `handleSearch` also
+   * closes over the user's position, and depending on it directly would re-run
+   * the search again the moment GPS resolved.
+   */
+  const searchRef = useRef(handleSearch);
+  searchRef.current = handleSearch;
+
+  const filtersTouched = useRef(false);
+  useEffect(() => {
+    if (!filtersTouched.current) {
+      // First render: the URL-driven search below owns this pass.
+      filtersTouched.current = true;
+      return;
+    }
+    void searchRef.current();
+  }, [activeCategory, activeMood]);
+
   const autoSearched = useRef(false);
   useEffect(() => {
     if (autoSearched.current) return;

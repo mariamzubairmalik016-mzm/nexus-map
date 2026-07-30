@@ -22,6 +22,15 @@ export const tourismDiscoveryService = {
     city?: string;
     mood?: TravelMood;
     limit?: number;
+    /**
+     * Where to look. Without it the API has no centre to search around and
+     * falls back to the dozen curated rows, so picking a category on its own
+     * returned almost nothing — "restaurant" and "waterfall" and most of the
+     * other thirty-odd chips are simply not in that table. Passing the user's
+     * position makes every category answer from live data.
+     */
+    latitude?: number;
+    longitude?: number;
   }): Promise<TourismPOI[]> {
     // Build query params for the API
     const qp = new URLSearchParams();
@@ -29,6 +38,10 @@ export const tourismDiscoveryService = {
     if (params.category) qp.set("category", params.category);
     if (params.city) qp.set("city", params.city);
     if (params.limit) qp.set("limit", String(params.limit));
+    if (params.latitude !== undefined && params.longitude !== undefined) {
+      qp.set("lat", String(params.latitude));
+      qp.set("lng", String(params.longitude));
+    }
 
     try {
       const data = await api.get<TourismPOI[]>(`/tourism/pois?${qp.toString()}`);

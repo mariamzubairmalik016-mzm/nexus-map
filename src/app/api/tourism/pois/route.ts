@@ -43,7 +43,10 @@ export async function GET(req: NextRequest) {
     };
 
     const latParam = num("lat");
-    const lonParam = num("lon");
+    // Both spellings. This read only `lon` while every other route in the app
+    // — and the client — says `lng`, so a caller that passed a perfectly good
+    // coordinate got no centre and silently fell back to the curated rows.
+    const lonParam = num("lon") ?? num("lng");
     const radius = Math.min(num("radius") || 30000, 50000);
 
     // ---- Curated rows ------------------------------------------------------
