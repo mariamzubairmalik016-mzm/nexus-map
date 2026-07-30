@@ -3,18 +3,18 @@ import { Github, Instagram, Map, Send, Twitter } from "lucide-react";
 import Link from "next/link";
 
 const Footer = () => (
-  <footer className="relative z-10 border-t border-white/[0.06] bg-[#020617] overflow-hidden">
+  <footer className="relative z-10 border-t border-white/[0.06] overflow-hidden">
     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/15 to-transparent" />
 
     <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-4 lg:px-8">
       <div className="lg:col-span-2">
         <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-gradient-to-br from-cyan-400/15 to-blue-600/15 p-3 text-cyan-400 shadow-[0_0_24px_rgba(34,211,238,0.08)]">
+          <div className="rounded-[14px] bg-gradient-to-b from-[#3aa0ff] to-[#0a84ff] p-3 text-white shadow-[0_8px_20px_rgba(10,132,255,0.3),inset_0_1px_0_rgba(255,255,255,0.35)]">
             <Map size={23} />
           </div>
           <div>
-            <p className="text-2xl font-black tracking-tight">NEXUS MAP</p>
-            <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-cyan-400">Explore anywhere</p>
+            <p className="text-2xl font-semibold tracking-[-0.03em]">Nexus Map</p>
+            <p className="text-[11px] font-medium text-white/45">Explore anywhere</p>
           </div>
         </div>
         <p className="mt-5 max-w-lg leading-7 text-slate-400">
@@ -42,7 +42,7 @@ const Footer = () => (
       </div>
 
       <div>
-        <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-white">Explore</h3>
+        <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-white/50">Explore</h3>
         <div className="mt-5 space-y-3">
           {[
             { label: "World Map", href: "/map" },
@@ -62,7 +62,7 @@ const Footer = () => (
       </div>
 
       <div>
-        <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-white">Account</h3>
+        <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-white/50">Account</h3>
         <div className="mt-5 space-y-3">
           {[
             { label: "Dashboard", href: "/dashboard" },
@@ -84,7 +84,7 @@ const Footer = () => (
 
     <div className="relative border-t border-white/[0.06] px-4 py-6">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-center text-sm text-slate-400 sm:flex-row sm:text-left">
-        <p>© 2026 NEXUS MAP. Frontend demonstration.</p>
+        <p>© 2026 Nexus Map. Frontend demonstration.</p>
         <p className="text-xs text-slate-500">Built with precision · Explore without limits</p>
       </div>
     </div>

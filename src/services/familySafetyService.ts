@@ -27,6 +27,48 @@ const EMERGENCY_NUMBERS = [
 
 import { api } from "./api";
 
+/** Row shapes as the API returns them — snake-free, ids are uuid strings. */
+export type ServerSOSAlert = {
+  id: string;
+  userId: string;
+  latitude: number;
+  longitude: number;
+  message: string | null;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+};
+
+const SAFE_ZONE_KEY = "nexus-safe-zones-v2";
+
+/** Metres between two coordinates (haversine) — used for geofence crossings. */
+export const distanceBetween = (
+  aLat: number,
+  aLng: number,
+  bLat: number,
+  bLng: number,
+): number => {
+  const R = 6371e3;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+
+export type ServerContact = {
+  id: string;
+  userId: string;
+  name: string;
+  phone: string;
+  relationship: string | null;
+  isPrimary: number;
+  createdAt: string;
+};
+
 export const familySafetyService = {
   // ─── Emergency Numbers ──────────────────────────────────
   async getEmergencyNumbers() {
@@ -69,20 +111,43 @@ export const familySafetyService = {
   },
 
   // ─── Safe Zones ─────────────────────────────────────────
-  async getSafeZones(userId: string): Promise<SafeZone[]> {
-    const stored = localStorage.getItem(`nexus-safe-zones-${userId}`);
-    if (stored) return JSON.parse(stored);
-    return [];
+  /**
+   * Device-local by design. A geofence is only useful while this browser is
+   * open and watching GPS — the crossing is detected here, not on a server —
+   * so syncing the definitions elsewhere would imply monitoring that isn't
+   * happening. `deleteSafeZone` previously did nothing at all, so zones could
+   * be created but never removed.
+   */
+  getSafeZones(): SafeZone[] {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = window.localStorage.getItem(SAFE_ZONE_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? (parsed as SafeZone[]) : [];
+    } catch {
+      return [];
+    }
   },
 
-  async saveSafeZone(userId: string, zone: SafeZone): Promise<void> {
-    const zones = await this.getSafeZones(userId);
-    zones.push(zone);
-    localStorage.setItem(`nexus-safe-zones-${userId}`, JSON.stringify(zones));
+  saveSafeZones(zones: SafeZone[]): void {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(SAFE_ZONE_KEY, JSON.stringify(zones));
+    } catch {
+      /* private mode / quota — non-fatal */
+    }
   },
 
-  async deleteSafeZone(zoneId: string): Promise<void> {
-    // In production, delete from backend
+  addSafeZone(zone: SafeZone): SafeZone[] {
+    const next = [...this.getSafeZones(), zone];
+    this.saveSafeZones(next);
+    return next;
+  },
+
+  deleteSafeZone(zoneId: string): SafeZone[] {
+    const next = this.getSafeZones().filter((z) => z.id !== zoneId);
+    this.saveSafeZones(next);
+    return next;
   },
 
   // ─── Family Members ─────────────────────────────────────
@@ -105,46 +170,54 @@ export const familySafetyService = {
   },
 
   // ─── SOS ────────────────────────────────────────────────
-  async sendSOS(alert: Omit<SOSAlert, "id" | "status" | "createdAt">): Promise<SOSAlert> {
-    const fullAlert: SOSAlert = {
-      ...alert,
-      id: crypto.randomUUID(),
-      status: "active",
-      createdAt: new Date().toISOString(),
+  /**
+   * Everything below talks to `/api/sos` and `/api/emergency-contacts`, which
+   * are Postgres-backed. The previous versions resolved local objects and
+   * console.logged the recipients, so an SOS updated the screen and nothing
+   * else — the most dangerous possible failure for this feature, because the
+   * UI reported success.
+   */
+
+  /** The caller's open alert (or null) plus their saved contacts. */
+  async getSOSStatus(): Promise<{ active: ServerSOSAlert | null; contacts: ServerContact[] }> {
+    const data = await api.get<{ active: ServerSOSAlert[]; contacts: ServerContact[] }>("/sos");
+    return {
+      active: data.active?.[0] ?? null,
+      contacts: data.contacts ?? [],
     };
-
-    // In production, send SMS/email/push to emergency contacts
-    if (typeof window !== "undefined") {
-      // Send to stored emergency contacts
-      const contacts = await this.getEmergencyContacts(alert.userId);
-      contacts.forEach((contact) => {
-        // SMS/messaging integration placeholder
-        console.log(`SOS sent to ${contact.name} at ${contact.phone}`);
-      });
-    }
-
-    return fullAlert;
   },
 
-  async resolveSOS(alertId: string): Promise<void> {
-    // In production, update backend
+  /**
+   * Raise (or re-point) an alert. The server keeps one open alert per user, so
+   * pressing this again while an alert is live moves it to the newest
+   * coordinates instead of stacking duplicates.
+   */
+  async raiseSOS(input: { latitude: number; longitude: number; message?: string }): Promise<ServerSOSAlert> {
+    return api.post<ServerSOSAlert>("/sos", input);
+  },
+
+  /** Stand down — resolves the caller's active alert. */
+  async resolveSOS(): Promise<number> {
+    const data = await api.patch<{ resolved: number }>("/sos");
+    return data.resolved;
   },
 
   // ─── Emergency Contacts ─────────────────────────────────
-  async getEmergencyContacts(userId: string): Promise<EmergencyContact[]> {
-    const stored = localStorage.getItem(`nexus-emergency-contacts-${userId}`);
-    if (stored) return JSON.parse(stored);
-    return [
-      { id: "ec1", name: "Home", phone: "+92-XXX-XXXXXXX", relationship: "Family", isPrimary: true },
-    ];
+  async getEmergencyContacts(): Promise<ServerContact[]> {
+    return api.get<ServerContact[]>("/emergency-contacts");
   },
 
-  async saveEmergencyContact(contact: EmergencyContact): Promise<void> {
-    // In production, sync to backend
+  async saveEmergencyContact(contact: {
+    name: string;
+    phone: string;
+    relationship?: string;
+    isPrimary?: boolean;
+  }): Promise<ServerContact> {
+    return api.post<ServerContact>("/emergency-contacts", contact);
   },
 
   async deleteEmergencyContact(contactId: string): Promise<void> {
-    // In production, delete from backend
+    await api.delete(`/emergency-contacts?id=${encodeURIComponent(contactId)}`);
   },
 
   // ─── Travel Health Tips ─────────────────────────────────

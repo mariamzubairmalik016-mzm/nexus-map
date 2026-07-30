@@ -6,7 +6,7 @@ import WorldPreview from "../../components/Home/WorldPreview";
 import Features from "../../components/Home/Features";
 
 const Home = () => (
-  <div className="overflow-hidden bg-[#020617]">
+  <div className="overflow-hidden">
     <Hero />
     <AISearch />
     <PopularDestinations />

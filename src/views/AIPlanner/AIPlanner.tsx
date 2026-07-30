@@ -317,7 +317,7 @@ const AIPlanner = () => {
                 type="button"
                 onClick={() => void handleGenerate()}
                 disabled={loading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 py-4 font-semibold disabled:opacity-60"
+                className="nexus-button-primary nexus-button-block"
               >
                 {loading ? (
                   <LoaderCircle className="animate-spin" size={20} />

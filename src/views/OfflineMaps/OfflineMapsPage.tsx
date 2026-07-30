@@ -16,7 +16,7 @@ const DownloadManager: React.FC = () => (
 
 export default function OfflineMapsPage() {
   return (
-    <div className="min-h-screen bg-[#020617] text-white">
+    <div className="min-h-screen text-white">
 
       <div className="max-w-7xl mx-auto px-6 py-10">
 

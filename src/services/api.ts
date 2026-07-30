@@ -86,8 +86,11 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  delete: (endpoint: string) =>
-    request<void>(endpoint, {
+  // Generic so a DELETE that returns something useful (the new member count
+  // after leaving a group, for example) isn't forced to discard it. Callers
+  // that don't care can keep ignoring the result.
+  delete: <T = void>(endpoint: string) =>
+    request<T>(endpoint, {
       method: "DELETE",
     }),
 };

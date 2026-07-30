@@ -11,7 +11,7 @@ const items = [
 ];
 
 const Stats = () => (
-  <section className="relative bg-[#020617] px-4 py-16 sm:px-6 lg:px-8">
+  <section className="relative px-4 py-16 sm:px-6 lg:px-8">
     <div className="relative mx-auto grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-4">
       {items.map(({ target, suffix, label, icon: Icon }, index) => (
         <Reveal key={label} delay={index * 0.08}>

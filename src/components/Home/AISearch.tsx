@@ -12,7 +12,7 @@ const AISearch = () => {
   };
 
   return (
-    <section className="relative bg-[#020617] px-4 py-16 sm:px-6 lg:px-8">
+    <section className="relative px-4 py-16 sm:px-6 lg:px-8">
       <div className="relative mx-auto max-w-6xl">
         <div className="nexus-card-cinematic p-6 text-center sm:p-10">
           <p className="nexus-eyebrow">Intelligent discovery</p>

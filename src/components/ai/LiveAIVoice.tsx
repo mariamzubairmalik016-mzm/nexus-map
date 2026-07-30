@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Mic, X, LoaderCircle, AudioLines, Map as MapIcon, Route } from "lucide-react";
+import { X, AudioLines } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
@@ -82,6 +82,17 @@ const RESTART_DELAY_MOBILE_MS = 900;
 /** Give up relaunching the mic after this many consecutive failures. */
 const MAX_RESTART_FAILURES = 4;
 
+/**
+ * Deadlines for the two network round trips in a turn.
+ *
+ * Neither had one. A slow or hung upstream left the assistant silent with the
+ * mic shut and no way back except closing it, which is what "sometimes it
+ * works, sometimes it doesn't" actually was. Both now fail over to something
+ * that answers immediately.
+ */
+const LIVE_TIMEOUT_MS = 25_000;
+const TTS_TIMEOUT_MS = 9_000;
+
 const GREETING = voicePhrases.greeting;
 
 /** Kept identical to the entries in voicePhrases.json so they play from cache. */
@@ -106,6 +117,33 @@ const LiveAIVoice = () => {
 
   const mobileRef = useRef(false);
   const restartFailuresRef = useRef(0);
+  /**
+   * The one pending mic restart.
+   *
+   * Three separate paths scheduled a restart — `recognition.onend`, the gap
+   * after a reply finishes speaking, and the failure backoff — with no shared
+   * handle, so they stacked. Several timers would fire within a few hundred
+   * milliseconds, each calling `start()` on a recogniser the previous one had
+   * already started; the resulting InvalidStateError churn is what made the
+   * mic come back sometimes and not others. One timer, always cleared first.
+   */
+  const restartTimerRef = useRef<number | null>(null);
+  /**
+   * The browser voice, chosen once.
+   *
+   * `speechSynthesis.getVoices()` returns an empty array on the first call in
+   * Chrome — the list loads asynchronously — so the old code's `pool[0]` was
+   * frequently `undefined` and the utterance fell back to whatever the browser
+   * felt like. That is the voice changing between sentences. Resolved once per
+   * session and reused.
+   */
+  const fallbackVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  /**
+   * Once the assistant has had to fall back to the browser voice, it stays
+   * there for the rest of the session. Switching back to Gemini mid-chat is
+   * exactly the audible change of speaker the user is complaining about.
+   */
+  const usingBrowserVoiceRef = useRef(false);
 
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -139,6 +177,7 @@ const LiveAIVoice = () => {
   const historyRef = useRef<ChatTurn[]>([]);
   const pathnameRef = useRef(pathname);
   const handleRef = useRef<(text: string) => void>(() => {});
+  const startListenRef = useRef<() => void>(() => {});
 
   pathnameRef.current = pathname;
   historyRef.current = history;
@@ -159,6 +198,22 @@ const LiveAIVoice = () => {
     processingRef.current = value;
     setProcessing(value);
   };
+
+  /** Replace any pending restart with this one. Never stack. */
+  const scheduleRestart = useCallback((delay: number) => {
+    if (restartTimerRef.current !== null) window.clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = window.setTimeout(() => {
+      restartTimerRef.current = null;
+      startListenRef.current();
+    }, delay);
+  }, []);
+
+  const cancelRestart = useCallback(() => {
+    if (restartTimerRef.current !== null) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+  }, []);
 
   const startListening = useCallback(() => {
     const recognition = recognitionRef.current;
@@ -191,15 +246,64 @@ const LiveAIVoice = () => {
       // difference between a working mic and one that never comes back.
       restartFailuresRef.current += 1;
       if (restartFailuresRef.current <= MAX_RESTART_FAILURES) {
-        setTimeout(() => startListening(), 400 * restartFailuresRef.current);
+        scheduleRestart(400 * restartFailuresRef.current);
       } else {
         setMicBlocked(true);
       }
     }
+  }, [scheduleRestart]);
+
+  // `scheduleRestart` is defined above `startListening` so both can reference
+  // each other; this ref is what closes the loop without a circular useCallback.
+  startListenRef.current = startListening;
+
+  /**
+   * Resolve the browser voice, waiting for the list if it is not ready.
+   *
+   * Chrome populates `getVoices()` asynchronously and fires `voiceschanged`
+   * when it is done; calling it cold returns `[]`. Picking a voice is done
+   * once and pinned, so the assistant cannot change speaker mid-conversation.
+   */
+  const resolveFallbackVoice = useCallback(async (): Promise<SpeechSynthesisVoice | null> => {
+    if (fallbackVoiceRef.current) return fallbackVoiceRef.current;
+    const synth = synthRef.current;
+    if (!synth) return null;
+
+    let voices = synth.getVoices();
+    if (voices.length === 0) {
+      voices = await new Promise<SpeechSynthesisVoice[]>((resolve) => {
+        const timer = window.setTimeout(() => resolve(synth.getVoices()), 1200);
+        synth.addEventListener(
+          "voiceschanged",
+          () => {
+            window.clearTimeout(timer);
+            resolve(synth.getVoices());
+          },
+          { once: true },
+        );
+      });
+    }
+    if (voices.length === 0) return null;
+
+    // Language first, gender second: an English voice reading Urdu is
+    // unintelligible, whereas a female voice reading Urdu is merely not what
+    // was asked for.
+    const base = langRef.current.split("-")[0];
+    const sameLanguage = voices.filter((voice) => voice.lang.split("-")[0] === base);
+    const pool = sameLanguage.length ? sameLanguage : voices;
+
+    fallbackVoiceRef.current =
+      pool.find((voice) => /daniel|alex|rishi|google uk english male/i.test(voice.name)) ??
+      pool.find((voice) => /male/i.test(voice.name)) ??
+      pool[0] ??
+      null;
+
+    return fallbackVoiceRef.current;
   }, []);
 
   const stopListening = useCallback(() => {
     const recognition = recognitionRef.current;
+    cancelRestart();
     setListeningState(false);
     if (recognition) {
       try {
@@ -208,7 +312,7 @@ const LiveAIVoice = () => {
         /* already stopped */
       }
     }
-  }, []);
+  }, [cancelRestart]);
 
   /**
    * Speak a line, then hand the mic back.
@@ -235,17 +339,24 @@ const LiveAIVoice = () => {
         // Gap so the tail of the reply does not land in the next capture, and
         // so a phone has time to release the audio session before the mic
         // claims it.
-        setTimeout(
-          () => startListening(),
-          mobileRef.current ? RESTART_DELAY_MOBILE_MS : 350,
-        );
+        scheduleRestart(mobileRef.current ? RESTART_DELAY_MOBILE_MS : 350);
       };
 
       try {
+        // Once this session has fallen back, stay fallen back — see
+        // `usingBrowserVoiceRef`. Skipping the request also removes the wait.
+        if (usingBrowserVoiceRef.current) throw new Error("session pinned to browser voice");
+
         const response = await fetch("/api/ai/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, session: sessionRef.current }),
+          // Generating a novel sentence takes a few seconds and an overloaded
+          // model can take far longer. Without a deadline the assistant sat
+          // mute with the mic closed for as long as the upstream took — the
+          // "it heard me and then nothing happened for ages" complaint. Past
+          // this, the browser voice answers immediately instead.
+          signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
         });
 
         if (!response.ok) throw new Error(`TTS ${response.status}`);
@@ -269,6 +380,7 @@ const LiveAIVoice = () => {
         await audio.play();
       } catch (error) {
         console.warn("[voice] Gemini TTS unavailable, using browser voice:", error);
+        usingBrowserVoiceRef.current = true;
 
         const synth = synthRef.current;
         if (!synth) {
@@ -281,27 +393,32 @@ const LiveAIVoice = () => {
         utterance.rate = 0.98;
         utterance.pitch = 0.85; // Drop it toward a male range.
 
-        // Getting the language right matters more than getting a male voice:
-        // an English voice reading Urdu is unintelligible, whereas a female
-        // voice reading Urdu is merely not what was asked for. So filter by
-        // language first, and only then prefer a male speaker within it.
-        const voices = synth.getVoices();
-        const base = langRef.current.split("-")[0];
-        const sameLanguage = voices.filter((voice) => voice.lang.split("-")[0] === base);
-        const pool = sameLanguage.length ? sameLanguage : voices;
-
-        const chosen =
-          pool.find((voice) => /daniel|alex|rishi|google uk english male/i.test(voice.name)) ??
-          pool.find((voice) => /male/i.test(voice.name)) ??
-          pool[0];
+        const chosen = await resolveFallbackVoice();
         if (chosen) utterance.voice = chosen;
 
-        utterance.onend = done;
-        utterance.onerror = done;
+        // Safari fires neither onend nor onerror if the utterance is cut off,
+        // which would strand the session with the mic shut. Roughly 90ms per
+        // character is a generous read; whichever lands first wins.
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          done();
+        };
+        const guard = window.setTimeout(finish, 3_000 + text.length * 90);
+
+        utterance.onend = () => {
+          window.clearTimeout(guard);
+          finish();
+        };
+        utterance.onerror = () => {
+          window.clearTimeout(guard);
+          finish();
+        };
         synth.speak(utterance);
       }
     },
-    [startListening, stopListening],
+    [resolveFallbackVoice, scheduleRestart, stopListening],
   );
 
   /**
@@ -379,6 +496,13 @@ const LiveAIVoice = () => {
             page: pathnameRef.current,
             pending: pendingRef.current,
           }),
+          // This had no deadline at all. When the model chain was slow or an
+          // upstream hung, the assistant stayed on "Thinking…" with the mic
+          // closed indefinitely and the only way out was to close it — which
+          // is the "sometimes it just stops working" report. The server tries
+          // several models with its own 10s budget each, so this is set past
+          // that: reaching it means the request is genuinely stuck.
+          signal: AbortSignal.timeout(LIVE_TIMEOUT_MS),
         });
 
         const payload = await response.json();
@@ -510,10 +634,7 @@ const LiveAIVoice = () => {
     recognition.onend = () => {
       setListeningState(false);
       if (openRef.current && !speakingRef.current && !processingRef.current) {
-        setTimeout(
-          () => startListening(),
-          mobileRef.current ? RESTART_DELAY_MOBILE_MS : RESTART_DELAY_MS,
-        );
+        scheduleRestart(mobileRef.current ? RESTART_DELAY_MOBILE_MS : RESTART_DELAY_MS);
       }
     };
 
@@ -529,7 +650,7 @@ const LiveAIVoice = () => {
       audioRef.current?.pause();
       synthRef.current?.cancel();
     };
-  }, [startListening]);
+  }, [startListening, scheduleRestart]);
 
   /** Position, so "nearest petrol pump" resolves near the user rather than a default. */
   useEffect(() => {
@@ -546,16 +667,23 @@ const LiveAIVoice = () => {
     );
   }, [open]);
 
-  const closeAssistant = () => {
+  const closeAssistant = useCallback(() => {
     setOpenState(false);
+    cancelRestart();
     stopListening();
     audioRef.current?.pause();
     synthRef.current?.cancel();
     setSpeakingState(false);
     setProcessingState(false);
     setTranscript("");
-  };
+    pendingRef.current = null;
+  }, [cancelRestart, stopListening]);
 
+  /**
+   * The orb is a single toggle, the way Siri is: tap to start, tap again to
+   * stop. It replaces a modal that had its own close button, its own mic
+   * button and two shortcut tiles — four controls for what is one decision.
+   */
   const toggleLiveAI = () => {
     if (open) {
       closeAssistant();
@@ -578,11 +706,16 @@ const LiveAIVoice = () => {
       const silent = new SpeechSynthesisUtterance(" ");
       silent.volume = 0;
       synthRef.current.speak(silent);
+      // Warming the voice list during the gesture means the first fallback
+      // line already has a speaker chosen instead of waiting for one.
+      void resolveFallbackVoice();
     }
     void audioRef.current?.play().catch(() => {});
 
     sessionRef.current = crypto.randomUUID();
     restartFailuresRef.current = 0;
+    usingBrowserVoiceRef.current = false;
+    fallbackVoiceRef.current = null;
     setMicBlocked(false);
     setOpenState(true);
     setHistory([]);
@@ -590,122 +723,66 @@ const LiveAIVoice = () => {
     void speakResponse(GREETING);
   };
 
-  const status = micBlocked
-    ? "The mic didn't open. Tap it to try again."
+  // Escape closes it, like any other overlay.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeAssistant();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, closeAssistant]);
+
+  /** Drives both the glow and the caption, so they can never disagree. */
+  const state: "listening" | "thinking" | "speaking" | "blocked" = micBlocked
+    ? "blocked"
+    : processing
+      ? "thinking"
+      : speaking
+        ? "speaking"
+        : "listening";
+
+  const caption = micBlocked
+    ? "Mic blocked — allow access, then tap again"
     : processing
       ? "Thinking…"
       : speaking
         ? "Speaking…"
-        : transcript || (listening ? "Listening…" : "Tap the mic to talk");
-
-  /** Tapping the mic is a user gesture, which is what a phone wants to grant it. */
-  const retryMic = () => {
-    restartFailuresRef.current = 0;
-    setMicBlocked(false);
-    startListening();
-  };
+        : transcript || "Listening…";
 
   return (
     <>
-      {open && (
-        <div className="pointer-events-none fixed inset-0 z-[70] transition-opacity duration-700">
-          <div className="absolute inset-0 shadow-[inset_0_0_80px_rgba(34,211,238,0.15)] ring-4 ring-cyan-500/20" />
-          {(listening || speaking) && (
-            <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(168,85,247,0.2)] animate-pulse ring-4 ring-purple-500/30" />
-          )}
-          {speaking && (
-            <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(236,72,153,0.3)] ring-4 ring-pink-500/40 transition-all duration-300" />
-          )}
-        </div>
-      )}
-
       {/*
-        A phone gets a bottom sheet across the full width; anything larger keeps
-        the floating card. The safe-area padding keeps the controls clear of the
-        home indicator, which otherwise sits directly on top of the mic button.
+        iOS 26 Siri does not open a window. It lights the edge of the display
+        and leaves the app underneath usable — which matters here, because the
+        thing being talked about is the map behind it. The panel this replaces
+        covered the bottom of the screen with a mic button, a close button and
+        two shortcut tiles, none of which the voice session needs.
       */}
-      {open && (
-        <div className="fixed inset-x-0 bottom-0 z-[80] rounded-t-3xl border-t border-white/10 bg-black/70 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] backdrop-blur-2xl shadow-2xl flex flex-col items-center gap-5 animate-in slide-in-from-bottom-5 fade-in-0 sm:inset-x-auto sm:bottom-24 sm:right-5 sm:w-[min(360px,calc(100vw-32px))] sm:rounded-3xl sm:border sm:p-6 sm:pb-6 sm:gap-6 sm:zoom-in-95">
-          <div className="flex w-full justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-sm font-semibold tracking-wide text-white uppercase">Live AI</span>
-            </div>
-            <button
-              onClick={closeAssistant}
-              aria-label="Close Live AI"
-              className="rounded-full bg-white/10 p-2 text-slate-300 hover:bg-white/20 hover:text-white transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="flex flex-col items-center gap-4 py-4 w-full">
-            <div className="relative flex items-center justify-center">
-              {speaking ? (
-                <div className="absolute inset-0 rounded-full bg-pink-500/30 blur-2xl animate-pulse" />
-              ) : listening ? (
-                <div className="absolute inset-0 rounded-full bg-cyan-500/30 blur-xl animate-pulse" />
-              ) : null}
-
-              <button
-                onClick={micBlocked ? retryMic : listening ? stopListening : startListening}
-                aria-label={listening ? "Stop listening" : "Start listening"}
-                className={`relative z-10 flex h-24 w-24 items-center justify-center rounded-full border-4 shadow-xl transition-all duration-300 active:scale-95 sm:hover:scale-105 ${
-                  speaking
-                    ? "border-pink-500/50 bg-gradient-to-br from-pink-500/20 to-purple-600/20 shadow-pink-500/20"
-                    : listening
-                      ? "border-cyan-500/50 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 shadow-cyan-500/20"
-                      : "border-white/10 bg-white/5"
-                }`}
-              >
-                {processing ? (
-                  <LoaderCircle className="animate-spin text-cyan-400" size={32} />
-                ) : speaking ? (
-                  <AudioLines className="text-pink-400 animate-bounce" size={36} />
-                ) : listening ? (
-                  <Mic className="text-cyan-400 animate-pulse" size={36} />
-                ) : (
-                  <Mic className="text-slate-400" size={36} />
-                )}
-              </button>
-            </div>
-
-            <p className="text-center text-sm font-medium text-slate-300 min-h-10 px-2 line-clamp-2">
-              {status}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 w-full text-xs font-medium text-slate-400">
-            <button
-              type="button"
-              className="flex flex-col gap-2 rounded-xl bg-white/5 p-3 text-left hover:bg-white/10 transition-colors"
-              onClick={() => void handleVoiceCommand("Open the map")}
-            >
-              <MapIcon size={16} className="text-cyan-400" />
-              View Map
-            </button>
-            <button
-              type="button"
-              className="flex flex-col gap-2 rounded-xl bg-white/5 p-3 text-left hover:bg-white/10 transition-colors"
-              onClick={() => void handleVoiceCommand("Make me a trip plan")}
-            >
-              <Route size={16} className="text-purple-400" />
-              AI Planner
-            </button>
-          </div>
+      <div className="nexus-siri" data-active={open} data-state={state} aria-hidden>
+        <div className="nexus-siri-frame">
+          <div className="nexus-siri-ring" />
         </div>
+      </div>
+
+      {open && (
+        <p className="nexus-siri-caption" role="status" aria-live="polite">
+          {caption}
+        </p>
       )}
 
-      {!open && (
-        <button
-          onClick={toggleLiveAI}
-          aria-label="Open Live AI assistant"
-          className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-[80] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-600 text-white shadow-[0_8px_32px_rgba(236,72,153,0.3)] transition-all duration-300 active:scale-95 sm:hover:scale-105 sm:hover:shadow-[0_12px_40px_rgba(236,72,153,0.4)]"
-        >
-          <AudioLines size={28} />
-        </button>
-      )}
+      <button
+        onClick={toggleLiveAI}
+        aria-label={open ? "Stop Live AI assistant" : "Open Live AI assistant"}
+        aria-pressed={open}
+        className={`fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-[92] flex h-16 w-16 items-center justify-center rounded-full text-white transition-all duration-300 active:scale-95 sm:hover:scale-105 ${
+          open
+            ? "bg-gradient-to-b from-[#ff6a60] to-[#ff453a] shadow-[0_10px_30px_rgba(255,69,58,0.45),inset_0_1px_0_rgba(255,255,255,0.3)]"
+            : "bg-gradient-to-b from-[#c86bf5] to-[#af52de] shadow-[0_10px_30px_rgba(175,82,222,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] sm:hover:shadow-[0_14px_40px_rgba(175,82,222,0.55),inset_0_1px_0_rgba(255,255,255,0.36)]"
+        }`}
+      >
+        {open ? <X size={26} /> : <AudioLines size={28} />}
+      </button>
     </>
   );
 };

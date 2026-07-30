@@ -383,6 +383,60 @@ export const searchCategoryTomTom = async (
   }));
 };
 
+/**
+ * Nearby POI search by search term.
+ *
+ * `searchCategoryTomTom` above passes `categorySet` with an empty query path.
+ * On this account that combination returns `totalResults: 0` for every
+ * request — verified against the live API for hospitals, pharmacies and a
+ * bare nearbySearch — which is why the Safety Centre's facility list was
+ * always empty. Plain poiSearch with a term returns real results on the same
+ * key, so the term is what does the filtering here.
+ */
+export const searchNearbyPoiTomTom = async (
+  term: string,
+  lat: number,
+  lon: number,
+  radius = 25000,
+  limit = 20,
+) => {
+  const params = new URLSearchParams({
+    key: env.TOMTOM_API_KEY,
+    lat: String(lat),
+    lon: String(lon),
+    radius: String(radius),
+    limit: String(limit),
+    language: "en-GB",
+  });
+
+  const url = `${TOMTOM_BASE}/search/2/poiSearch/${encodeURIComponent(term)}.json?${params.toString()}`;
+
+  type PoiSearchResponse = {
+    results: Array<{
+      id: string;
+      poi?: { name?: string; categories?: string[]; phone?: string; url?: string };
+      position: { lat: number; lon: number };
+      address?: { freeformAddress?: string; municipality?: string; country?: string };
+      dist?: number;
+    }>;
+  };
+
+  const data = await fetchTomTom<PoiSearchResponse>(url);
+
+  return (data.results ?? []).map((result) => ({
+    id: result.id,
+    name: result.poi?.name || "Unknown place",
+    address:
+      result.address?.freeformAddress ||
+      [result.address?.municipality, result.address?.country].filter(Boolean).join(", "),
+    position: { latitude: result.position.lat, longitude: result.position.lon },
+    distance: result.dist ?? 0,
+    category: result.poi?.categories?.[0],
+    phone: result.poi?.phone,
+    website: result.poi?.url,
+  }));
+};
+
 export const fetchTomTomTile = async (
   kind: "map" | "traffic",
   z: string,

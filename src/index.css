@@ -1,45 +1,120 @@
 @import "tailwindcss";
 
+/* ============================================================
+   iOS 26 "LIQUID GLASS" THEME
+   ------------------------------------------------------------
+   The visual language is Apple's iOS 26 Liquid Glass, adapted
+   for a dark map product: real frosted material (blur +
+   saturation), specular top highlights, capsule controls,
+   large concentric radii, and the iOS dark-mode system palette
+   (blue #0A84FF, teal #64D2FF, purple #BF5AF2).
+
+   Class names are unchanged from the previous theme — every
+   .nexus-* consumer restyles automatically.
+   ============================================================ */
+
+/* Remap the Tailwind color scales the components hardcode
+   (text-cyan-400, bg-purple-500, …) onto the iOS system
+   palette, so all call sites snap to the new look without
+   edits. Only the shades actually used in the app are mapped. */
+@theme {
+  --color-cyan-200: #c8ecff;
+  --color-cyan-300: #9addff;
+  --color-cyan-400: #64d2ff;
+  --color-cyan-500: #2aa9ff;
+  --color-cyan-600: #0a84ff;
+
+  --color-blue-400: #409cff;
+  --color-blue-500: #0a84ff;
+  --color-blue-600: #0071e3;
+
+  --color-purple-200: #ecd3fb;
+  --color-purple-300: #d9a8f5;
+  --color-purple-400: #bf5af2;
+  --color-purple-500: #af52de;
+  --color-purple-600: #9d3fd1;
+
+  --color-emerald-300: #6fe396;
+  --color-emerald-400: #30d158;
+  --color-emerald-500: #2bbf50;
+
+  --color-amber-400: #ffd60a;
+  --color-yellow-400: #ffd60a;
+
+  /* Neutrals follow the iOS dark label/fill ramp rather than Tailwind's blue-
+     tinted slate. Contrast against the #060709 canvas: slate-400 ≈ 6.7:1,
+     slate-500 ≈ 4.7:1 — both clear AA for body text, which the old
+     blue-greys did not. */
+  --color-slate-200: #e8e8ed;
+  --color-slate-300: #c7c7cc;
+  --color-slate-400: #98989f;
+  --color-slate-500: #7c7c85;
+  --color-slate-600: #5a5a62;
+  --color-slate-900: #1c1e24;
+  --color-slate-950: #0c0d11;
+}
+
 :root {
   color-scheme: dark;
   font-family: var(--font-body);
-  background: #020617;
-  color: #f8fafc;
+  background: #060709;
+  color: #f5f5f7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
-  /* === Premium color palette === */
-  --nexus-cyan: #22d3ee;
-  --nexus-blue: #3b82f6;
-  --nexus-purple: #a855f7;
-  --nexus-emerald: #34d399;
-  --nexus-gold: #fbbf24;
-  --nexus-bg: #020617;
-  --nexus-bg-deeper: #010412;
-  --nexus-panel: rgba(15, 23, 42, 0.66);
-  --nexus-border: rgba(255, 255, 255, 0.09);
-  --nexus-border-light: rgba(255, 255, 255, 0.05);
-  --nexus-border-strong: rgba(255, 255, 255, 0.14);
-  --nexus-glow-cyan: rgba(34, 211, 238, 0.12);
-  --nexus-glow-purple: rgba(168, 85, 247, 0.12);
-  --nexus-glow-blue: rgba(59, 130, 246, 0.12);
-  --nexus-glow-emerald: rgba(52, 211, 153, 0.12);
+  /* === iOS dark system palette === */
+  --nexus-cyan: #64d2ff;      /* systemTeal (dark) */
+  --nexus-blue: #0a84ff;      /* systemBlue (dark) */
+  --nexus-purple: #bf5af2;    /* systemPurple (dark) */
+  --nexus-emerald: #30d158;   /* systemGreen (dark) */
+  --nexus-gold: #ffd60a;      /* systemYellow (dark) */
+  --nexus-bg: #060709;
+  --nexus-bg-deeper: #030304;
 
-  /* === Typography === */
-  --font-display: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-hero: "Marcellus", "Cormorant Garamond", Georgia, serif;
+  /* === Liquid Glass material ===
+     Deliberately thin. The panels are meant to read as glass sitting over a
+     coloured backdrop, so the ambient aurora shows through them — that
+     colour bleed is the whole effect. Push the alpha up and it collapses
+     back into flat dark cards. Saturation is boosted well past 100% so what
+     does come through is vivid rather than washed out. */
+  --glass-bg: rgba(22, 24, 30, 0.34);
+  --glass-bg-thick: rgba(18, 20, 26, 0.48);
+  --glass-bg-thin: rgba(255, 255, 255, 0.06);
+  --glass-blur: 40px;
+  --glass-saturate: 220%;
+  --nexus-panel: rgba(22, 24, 30, 0.34);
+  --nexus-border: rgba(255, 255, 255, 0.12);
+  --nexus-border-light: rgba(255, 255, 255, 0.07);
+  --nexus-border-strong: rgba(255, 255, 255, 0.18);
+  --nexus-glow-cyan: rgba(100, 210, 255, 0.12);
+  --nexus-glow-purple: rgba(191, 90, 242, 0.12);
+  --nexus-glow-blue: rgba(10, 132, 255, 0.14);
+  --nexus-glow-emerald: rgba(48, 209, 88, 0.12);
 
-  /* === Radius scale ===
-     Six arbitrary radii were in use across the app — rounded-[20px], [24px],
-     [26px], [28px], [30px], [34px] — differences nobody can perceive. These
-     five steps replace them. Pick by element size, not by feel:
-     control → sm, card → lg, panel/section → xl, hero surface → 2xl. */
-  --r-sm: 0.75rem;   /* 12px — chips, badges, small controls   */
-  --r-md: 1rem;      /* 16px — buttons, inputs                 */
+  /* Specular highlight — the bright top edge every glass surface gets */
+  --glass-specular: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --glass-rim: inset 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+
+  /* === Typography — SF-first system stack ===
+     On Apple hardware this resolves to SF Pro, which is what gives the UI its
+     native feel. Everywhere else it falls through to the Inter that
+     `layout.tsx` loads via next/font (--font-inter), so the metrics stay
+     close and nothing shifts on load. */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    var(--font-inter), Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    var(--font-inter), Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-hero: var(--font-display);
+
+  /* === Radius scale — iOS 26 concentric corners ===
+     Larger than a typical web scale on purpose: nested surfaces keep
+     concentric curvature (child radius ≈ parent radius − padding).
+     Controls (buttons, chips) are capsules and don't use this scale. */
+  --r-sm: 0.875rem;  /* 14px — chips, badges, small controls   */
+  --r-md: 1.125rem;  /* 18px — inputs, menu items              */
   --r-lg: 1.5rem;    /* 24px — cards                           */
   --r-xl: 1.75rem;   /* 28px — panels, elevated cards          */
-  --r-2xl: 2rem;     /* 32px — hero / cinematic surfaces       */
+  --r-2xl: 2.375rem; /* 38px — hero / sheet surfaces           */
 
   /* === Page rhythm ===
      Single source of truth for the shell. Every view used to retype
@@ -70,27 +145,23 @@ body {
      area, so full-height sections were pushed under the fold. */
   min-height: 100dvh;
   overflow-x: hidden;
+  /* The coloured "wallpaper" the glass sits on. This is what the panels
+     refract, so it carries real saturation — teal and green low-left, blue
+     and violet through the middle, magenta upper-right — rather than the
+     near-monochrome wash a dark UI would normally use. Kept dark in value so
+     white body text still clears AA on top of the translucent panels. */
   background:
-    radial-gradient(circle at 12% 12%, rgba(34, 211, 238, 0.09), transparent 26rem),
-    radial-gradient(circle at 84% 18%, rgba(168, 85, 247, 0.09), transparent 28rem),
-    radial-gradient(circle at 50% 88%, rgba(59, 130, 246, 0.07), transparent 32rem),
-    #020617;
+    radial-gradient(70rem 50rem at 8% 88%, rgba(16, 185, 129, 0.22), transparent 68%),
+    radial-gradient(60rem 45rem at 22% 8%, rgba(10, 132, 255, 0.24), transparent 66%),
+    radial-gradient(66rem 48rem at 88% 12%, rgba(214, 61, 168, 0.20), transparent 66%),
+    radial-gradient(58rem 44rem at 92% 78%, rgba(175, 82, 222, 0.20), transparent 68%),
+    radial-gradient(50rem 40rem at 52% 48%, rgba(56, 130, 246, 0.12), transparent 70%),
+    #07080c;
+  background-attachment: fixed;
 }
 
-/* Noise texture overlay — gives that premium film-grain feel */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -3;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
-  background-size: 54px 54px;
-  mask-image: linear-gradient(to bottom, black, transparent 88%);
-}
-
+/* Depth falloff, weighted to the top so the header glass has something
+   darker to sit against. */
 body::after {
   content: "";
   position: fixed;
@@ -98,20 +169,13 @@ body::after {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(to bottom, rgba(2, 6, 23, 0.06), rgba(2, 6, 23, 0.88));
+    linear-gradient(to bottom, rgba(4, 5, 8, 0.4), transparent 22%, transparent 70%, rgba(4, 5, 8, 0.35));
 }
 
-/* Subtle cinematic grain */
+/* Grain retired — the material provides the texture now. Kept as a no-op so
+   existing <div className="nexus-grain" /> mounts render nothing. */
 .nexus-grain {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.025;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  mix-blend-mode: overlay;
+  display: none;
 }
 
 button,
@@ -125,7 +189,7 @@ textarea {
 button,
 a {
   transition:
-    transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
     border-color 250ms ease,
     background-color 250ms ease,
     color 250ms ease,
@@ -133,9 +197,10 @@ a {
     opacity 250ms ease;
 }
 
+/* iOS press: scale down in place, no vertical shift */
 button:not(:disabled):active,
 a:active {
-  transform: translateY(1px) scale(0.99);
+  transform: scale(0.97);
 }
 
 button:focus-visible,
@@ -143,28 +208,28 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid rgba(34, 211, 238, 0.65);
+  outline: 2px solid rgba(10, 132, 255, 0.8);
   outline-offset: 3px;
 }
 
 input,
 select,
 textarea {
-  color: #f8fafc;
+  color: #f5f5f7;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #64748b;
+  color: rgba(235, 235, 245, 0.4); /* iOS tertiary label */
 }
 
 select option {
-  background: #07101f;
-  color: #f8fafc;
+  background: #131417;
+  color: #f5f5f7;
 }
 
 ::selection {
-  background: rgba(34, 211, 238, 0.28);
+  background: rgba(10, 132, 255, 0.35);
   color: #ffffff;
 }
 
@@ -179,23 +244,30 @@ select option {
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: linear-gradient(180deg, #1e3a5f, #3b1f6e);
-  border: 2px solid #020617;
+  background: rgba(255, 255, 255, 0.14);
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #0891b2, #7e22ce);
+  background: rgba(255, 255, 255, 0.26);
+  background-clip: content-box;
 }
 
 .leaflet-container {
   z-index: 0;
-  background: #0f172a;
+  background: #0b0c10;
   font-family: inherit;
 }
 
+/* Map chrome as floating glass, matching the rest of the UI */
 .leaflet-control-zoom {
   border: none !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
   margin-bottom: 20px !important;
   margin-right: 20px !important;
 }
@@ -203,42 +275,48 @@ select option {
 .leaflet-control-zoom a,
 .leaflet-control-layers {
   border: none !important;
-  background: #ffffff !important;
-  color: #666666 !important;
-  width: 28px !important;
-  height: 28px !important;
-  line-height: 28px !important;
-  font-size: 18px !important;
-  font-weight: bold !important;
+  background: rgba(28, 30, 36, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  color: #f5f5f7 !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
 }
 .leaflet-control-zoom a:hover {
-  background: #f4f4f4 !important;
-  color: #333333 !important;
+  background: rgba(48, 50, 58, 0.85) !important;
+  color: #ffffff !important;
 }
 
 .leaflet-popup-content-wrapper {
-  background: #ffffff !important;
-  color: #222222 !important;
-  border: none !important;
-  border-radius: 8px !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+  background: rgba(28, 30, 36, 0.82) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  color: #f5f5f7 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px !important;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   padding: 0 !important;
 }
 
 .leaflet-popup-tip {
-  background: #ffffff !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3) !important;
+  background: rgba(28, 30, 36, 0.85) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
 }
 
 .leaflet-popup-close-button {
-  color: #666666 !important;
+  color: rgba(235, 235, 245, 0.6) !important;
   font-size: 18px !important;
   font-weight: normal !important;
-  right: 4px !important;
-  top: 4px !important;
+  right: 6px !important;
+  top: 6px !important;
 }
 .leaflet-popup-close-button:hover {
-  color: #222222 !important;
+  color: #ffffff !important;
   background: transparent !important;
 }
 
@@ -256,8 +334,8 @@ select option {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.055), transparent 26rem),
-    radial-gradient(circle at 90% 30%, rgba(168, 85, 247, 0.055), transparent 30rem);
+    radial-gradient(circle at 20% 0%, rgba(10, 132, 255, 0.06), transparent 26rem),
+    radial-gradient(circle at 90% 30%, rgba(100, 210, 255, 0.04), transparent 30rem);
 }
 
 /* iPhone notch and home indicator.
@@ -319,19 +397,26 @@ select option {
 }
 
 /* ============================================================
-   GLASS & CARD SYSTEM — Premium Variants
+   GLASS & CARD SYSTEM — Liquid Glass materials
+   ------------------------------------------------------------
+   Every surface is the same material at different thicknesses:
+   blur + saturation lets background colour bleed through, a
+   bright inset top edge reads as a specular highlight, and a
+   faint full-perimeter inset is the rim light.
    ============================================================ */
 
-/* Base glass — refined with inner depth */
+/* Base glass — regular thickness */
 .nexus-glass {
   border: 1px solid var(--nexus-border);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
-    rgba(2, 6, 23, 0.66);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015) 40%),
+    var(--glass-bg);
   box-shadow:
-    0 28px 80px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(24px);
+    0 24px 60px rgba(0, 0, 0, 0.42),
+    var(--glass-specular),
+    var(--glass-rim);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 /* Standard card */
@@ -339,80 +424,83 @@ select option {
   border: 1px solid var(--nexus-border);
   border-radius: var(--r-xl);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
-    rgba(15, 23, 42, 0.58);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.012) 45%),
+    var(--glass-bg);
   box-shadow:
-    0 18px 50px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(22px);
+    0 16px 44px rgba(0, 0, 0, 0.35),
+    var(--glass-specular),
+    var(--glass-rim);
+  backdrop-filter: blur(24px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(24px) saturate(var(--glass-saturate));
 }
 
 .nexus-card:hover {
-  border-color: rgba(34, 211, 238, 0.2);
+  border-color: rgba(255, 255, 255, 0.18);
   box-shadow:
-    0 24px 68px rgba(0, 0, 0, 0.29),
-    0 0 0 1px rgba(34, 211, 238, 0.035);
+    0 22px 56px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    var(--glass-rim);
 }
 
-/* Premium deep card — more opacity, richer glass */
+/* Premium deep card — thicker glass, more presence */
 .nexus-card-premium {
   border: 1px solid var(--nexus-border-strong);
   border-radius: var(--r-xl);
   background:
-    linear-gradient(150deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
-    rgba(8, 15, 30, 0.72);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015) 45%),
+    var(--glass-bg-thick);
   box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 0 0 1px rgba(34, 211, 238, 0.03);
-  backdrop-filter: blur(28px);
+    0 28px 72px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    var(--glass-rim);
+  backdrop-filter: blur(32px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(32px) saturate(var(--glass-saturate));
 }
 
-/* Interactive elevated card with light sweep (sweep effect in @media (hover: hover)) */
+/* Interactive elevated card — lifts and brightens on hover */
 .nexus-card-elevated {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--nexus-border);
   border-radius: var(--r-xl);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
-    rgba(15, 23, 42, 0.58);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.012) 45%),
+    var(--glass-bg);
   box-shadow:
-    0 18px 50px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(22px);
+    0 16px 44px rgba(0, 0, 0, 0.35),
+    var(--glass-specular),
+    var(--glass-rim);
+  backdrop-filter: blur(24px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(24px) saturate(var(--glass-saturate));
   transition:
-    transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 350ms ease,
-    border-color 350ms ease;
+    transform 420ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 420ms ease,
+    border-color 420ms ease;
 }
 
 .nexus-card-elevated:hover {
-  transform: translateY(-4px);
-  border-color: rgba(34, 211, 238, 0.18);
+  transform: translateY(-4px) scale(1.005);
+  border-color: rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 28px 72px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(34, 211, 238, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 30px 72px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    var(--glass-rim);
 }
 
-/* Cinematic card — for hero / featured sections */
+/* Cinematic card — hero / featured sheet, largest radius, cool tint */
 .nexus-card-cinematic {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--r-2xl);
   background:
-    linear-gradient(135deg,
-      rgba(34, 211, 238, 0.05),
-      rgba(6, 182, 212, 0.02),
-      rgba(168, 85, 247, 0.03),
-      transparent 60%
-    ),
-    rgba(2, 6, 23, 0.6);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01) 50%),
+    linear-gradient(135deg, rgba(10, 132, 255, 0.06), rgba(100, 210, 255, 0.02) 45%, transparent 70%),
+    var(--glass-bg-thick);
   box-shadow:
-    0 40px 100px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -1px 0 rgba(34, 211, 238, 0.05);
-  backdrop-filter: blur(30px);
+    0 40px 100px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    var(--glass-rim);
+  backdrop-filter: blur(36px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(36px) saturate(var(--glass-saturate));
   position: relative;
   overflow: hidden;
 }
@@ -422,14 +510,18 @@ select option {
   border: 1px solid var(--nexus-border);
   border-radius: var(--r-lg);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
-    rgba(2, 6, 23, 0.55);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015) 45%),
+    var(--glass-bg);
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.42),
+    var(--glass-specular),
+    var(--glass-rim);
+  backdrop-filter: blur(24px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(24px) saturate(var(--glass-saturate));
   animation: nexus-float 6s ease-in-out infinite;
 }
 
-/* Glow card — subtle inner glow */
+/* Glow card — subtle inner light that follows the pointer */
 .nexus-card-glow {
   position: relative;
   overflow: hidden;
@@ -444,7 +536,7 @@ select option {
   height: 200%;
   background: radial-gradient(
     circle at var(--glow-x, 50%) var(--glow-y, 50%),
-    rgba(34, 211, 238, 0.03),
+    rgba(255, 255, 255, 0.05),
     transparent 50%
   );
   pointer-events: none;
@@ -452,32 +544,32 @@ select option {
 }
 
 /* ============================================================
-   GRADIENT TEXT
+   GRADIENT TEXT — restrained iOS tints
    ============================================================ */
 
 .nexus-gradient-text {
-  background: linear-gradient(90deg, #67e8f9 0%, #60a5fa 48%, #c084fc 100%);
+  background: linear-gradient(90deg, #9addff 0%, #64d2ff 45%, #409cff 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .nexus-gradient-text-gold {
-  background: linear-gradient(135deg, #fde047, #f59e0b 50%, #eab308);
+  background: linear-gradient(135deg, #ffe14d, #ffd60a 50%, #ffb800);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .nexus-gradient-text-emerald {
-  background: linear-gradient(135deg, #6ee7b7, #34d399 50%, #10b981);
+  background: linear-gradient(135deg, #6fe396, #30d158 50%, #2bbf50);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .nexus-gradient-text-rich {
-  background: linear-gradient(135deg, #67e8f9 0%, #818cf8 33%, #c084fc 66%, #f472b6 100%);
+  background: linear-gradient(135deg, #9addff 0%, #64d2ff 35%, #409cff 65%, #bf5af2 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -485,14 +577,14 @@ select option {
 
 .nexus-eyebrow {
   font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.28em;
+  font-weight: 600;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #22d3ee;
+  color: rgba(235, 235, 245, 0.6);
 }
 
 /* ============================================================
-   TYPOGRAPHY
+   TYPOGRAPHY — SF-style hierarchy
    ============================================================ */
 
 h1,
@@ -500,18 +592,18 @@ h2,
 h3,
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.022em;
 }
 
 .text-hero {
   font-family: var(--font-display);
   font-weight: 700;
-  line-height: 1.03;
-  letter-spacing: -0.035em;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
 }
 
 .nexus-gradient-text-animated {
-  background: linear-gradient(90deg, #67e8f9, #60a5fa, #c084fc, #67e8f9);
+  background: linear-gradient(90deg, #9addff, #64d2ff, #409cff, #9addff);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -524,11 +616,11 @@ h3,
   50% { background-position: 100% 50%; }
 }
 
-/* Cinematic display heading (serif) */
+/* Large display heading — was a serif face; now an SF-style large title. */
 .text-hero-display {
-  font-family: var(--font-hero);
-  font-weight: 400;
-  letter-spacing: 0.012em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
   line-height: 1.05;
 }
 
@@ -551,7 +643,7 @@ h3,
   width: 22px;
   height: 22px;
   border-radius: 9999px;
-  border: 3px solid #020617;
+  border: 3px solid rgba(6, 7, 9, 0.9);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
 }
 
@@ -572,17 +664,21 @@ h3,
   height: 34px;
   padding: 0 8px;
   border-radius: 9999px;
-  background: rgba(2, 6, 23, 0.9);
-  border: 2px solid rgba(34, 211, 238, 0.5);
+  background: rgba(28, 30, 36, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   color: #fff;
   font-weight: 700;
   display: grid;
   place-items: center;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 /* ============================================================
-   CINEMATIC BACKGROUND SYSTEM
+   AMBIENT BACKGROUND SYSTEM
    ============================================================ */
 
 .nexus-bg {
@@ -597,11 +693,12 @@ h3,
   position: absolute;
   inset: -25%;
   background:
-    radial-gradient(38% 38% at 15% 20%, rgba(16, 185, 129, 0.13), transparent 70%),
-    radial-gradient(42% 42% at 85% 22%, rgba(6, 182, 212, 0.13), transparent 70%),
-    radial-gradient(48% 48% at 50% 92%, rgba(59, 130, 246, 0.1), transparent 70%),
-    radial-gradient(34% 34% at 72% 62%, rgba(139, 92, 246, 0.07), transparent 70%);
-  filter: blur(30px);
+    radial-gradient(40% 40% at 18% 18%, rgba(10, 132, 255, 0.20), transparent 70%),
+    radial-gradient(42% 42% at 85% 22%, rgba(214, 61, 168, 0.16), transparent 70%),
+    radial-gradient(48% 48% at 50% 92%, rgba(175, 82, 222, 0.16), transparent 70%),
+    radial-gradient(38% 38% at 12% 78%, rgba(16, 185, 129, 0.16), transparent 70%),
+    radial-gradient(34% 34% at 72% 62%, rgba(100, 210, 255, 0.10), transparent 70%);
+  filter: blur(50px);
   animation: nexus-aurora-move 28s ease-in-out infinite;
 }
 
@@ -611,16 +708,10 @@ h3,
   66% { transform: translate3d(-2%, 2%, 0) scale(1.03); }
 }
 
+/* Grid layer retired — the backdrop stays clean so the glass reads as
+   material rather than sitting on a pattern. Kept as a no-op hook. */
 .nexus-bg-grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.4;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
-  background-size: 60px 60px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 38%, black, transparent 92%);
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 38%, black, transparent 92%);
+  display: none;
 }
 
 .nexus-bg-lines {
@@ -636,7 +727,7 @@ h3,
   stroke-width: 1.5;
   stroke-dasharray: 10 460;
   animation: nexus-route-flow 9s linear infinite;
-  opacity: 0.55;
+  opacity: 0.45;
 }
 
 @keyframes nexus-route-flow {
@@ -657,17 +748,22 @@ h3,
 .nexus-bg-spotlight {
   position: absolute;
   inset: 0;
-  background: radial-gradient(600px circle at var(--mx, 50%) var(--my, -10%), rgba(56, 189, 248, 0.05), transparent 60%);
+  background: radial-gradient(600px circle at var(--mx, 50%) var(--my, -10%), rgba(10, 132, 255, 0.06), transparent 60%);
 }
 
 .nexus-bg-vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(130% 100% at 50% 0%, transparent 55%, rgba(2, 6, 23, 0.6) 100%);
+  /* Light touch — a heavy vignette would kill the colour at the edges, which
+     is exactly where the green and magenta pools live. */
+  background: radial-gradient(140% 110% at 50% 0%, transparent 62%, rgba(3, 3, 4, 0.34) 100%);
 }
 
 /* ============================================================
-   BUTTON SYSTEM
+   BUTTON SYSTEM — iOS capsules
+   ------------------------------------------------------------
+   Primary is a filled systemBlue capsule with a specular top
+   edge; secondary and glossy are clear glass capsules.
    ============================================================ */
 
 .nexus-button-primary {
@@ -676,35 +772,34 @@ h3,
   justify-content: center;
   gap: 0.55rem;
   border: none;
-  border-radius: var(--r-md);
+  border-radius: 999px;
   /* 0.9rem block padding puts a 20px-icon button at ~46px tall, clearing the
      44x44 minimum touch target. Don't shrink below the --sm variant. */
-  padding: 0.9rem 1.25rem;
+  padding: 0.9rem 1.5rem;
   min-height: 2.75rem;
-  font-weight: 800;
-  color: #020617;
-  background: linear-gradient(135deg, #22d3ee, #3b82f6 50%, #a855f7);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 45%),
+    #0a84ff;
   box-shadow:
-    0 14px 34px rgba(59, 130, 246, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 12px 30px rgba(10, 132, 255, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
   position: relative;
   overflow: hidden;
   cursor: pointer;
 }
 
-.nexus-button-primary::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent 50%);
-  pointer-events: none;
-}
-
 .nexus-button-primary:hover {
-  transform: translateY(-2px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 45%),
+    #1e90ff;
   box-shadow:
-    0 18px 44px rgba(59, 130, 246, 0.3),
-    0 0 28px rgba(34, 211, 238, 0.12);
+    0 16px 40px rgba(10, 132, 255, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
 }
 
 .nexus-button-secondary {
@@ -712,20 +807,27 @@ h3,
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--r-md);
-  padding: 0.9rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.9rem 1.5rem;
   min-height: 2.75rem;
-  font-weight: 700;
-  color: #e2e8f0;
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(16px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f5f5f7;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02) 50%),
+    rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .nexus-button-secondary:hover {
-  border-color: rgba(34, 211, 238, 0.22);
+  border-color: rgba(255, 255, 255, 0.24);
   color: white;
-  background: rgba(34, 211, 238, 0.07);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 50%),
+    rgba(255, 255, 255, 0.08);
 }
 
 /* ---- Button size + state modifiers -------------------------------------
@@ -736,15 +838,15 @@ h3,
 
 .nexus-button-sm {
   gap: 0.4rem;
-  padding: 0.6rem 0.9rem;
+  padding: 0.6rem 1.1rem;
   min-height: 2.5rem;   /* 40px — still a comfortable target in dense UI */
   font-size: 0.8125rem;
-  border-radius: var(--r-sm);
+  border-radius: 999px;
 }
 
 .nexus-button-lg {
   gap: 0.65rem;
-  padding: 1.05rem 1.75rem;
+  padding: 1.05rem 2rem;
   min-height: 3.25rem;
   font-size: 1.0625rem;
 }
@@ -762,8 +864,8 @@ h3,
 .nexus-button-primary[aria-disabled="true"],
 .nexus-button-secondary[aria-disabled="true"] {
   cursor: not-allowed;
-  opacity: 0.45;
-  filter: saturate(0.6);
+  opacity: 0.4;
+  filter: saturate(0.5);
   transform: none;
   box-shadow: none;
 }
@@ -774,9 +876,8 @@ h3,
 }
 
 /* ---- Destructive actions ------------------------------------------------
-   Red is semantic here, not the brand accent — it means "this removes or
-   escalates something", and it stays out of the cyan/purple palette so the
-   two never read as interchangeable.
+   systemRed (dark) #FF453A. Red is semantic here, not the brand accent — it
+   means "this removes or escalates something".
 
    Two weights, because the app genuinely needs both: `quiet` for a Remove
    sitting next to a normal action (Favorites, History), solid for a
@@ -788,102 +889,114 @@ h3,
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
-  border-radius: var(--r-md);
-  padding: 0.9rem 1.25rem;
+  border-radius: 999px;
+  padding: 0.9rem 1.5rem;
   min-height: 2.75rem;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   cursor: pointer;
 }
 
 .nexus-button-danger {
   border: none;
   color: #fff;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 45%),
+    #ff453a;
   box-shadow:
-    0 14px 34px rgba(239, 68, 68, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    0 12px 30px rgba(255, 69, 58, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .nexus-button-danger:hover {
-  transform: translateY(-2px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 45%),
+    #ff5a50;
   box-shadow:
-    0 18px 44px rgba(239, 68, 68, 0.32),
-    0 0 28px rgba(239, 68, 68, 0.16);
+    0 16px 40px rgba(255, 69, 58, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
 }
 
 .nexus-button-danger-quiet {
-  border: 1px solid rgba(248, 113, 113, 0.18);
-  color: #fca5a5;
-  background: rgba(248, 113, 113, 0.09);
+  border: 1px solid rgba(255, 69, 58, 0.28);
+  color: #ff8a80;
+  background: rgba(255, 69, 58, 0.12);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
 .nexus-button-danger-quiet:hover {
-  border-color: rgba(248, 113, 113, 0.34);
-  color: #fecaca;
-  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(255, 69, 58, 0.45);
+  color: #ffb0a8;
+  background: rgba(255, 69, 58, 0.18);
 }
 
 .nexus-button-danger:disabled,
 .nexus-button-danger-quiet:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
-  filter: saturate(0.6);
+  opacity: 0.4;
+  filter: saturate(0.5);
   transform: none;
   box-shadow: none;
 }
 
-/* Glossy button variant */
+/* Glossy button — clear glass capsule with a stronger specular */
 .nexus-button-glossy {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: var(--r-md);
-  padding: 0.9rem 1.25rem;
-  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0.9rem 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: white;
   background:
-    linear-gradient(150deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
-    rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(16px);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 55%),
+    var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .nexus-button-glossy:hover {
-  border-color: rgba(34, 211, 238, 0.25);
+  border-color: rgba(255, 255, 255, 0.26);
   background:
-    linear-gradient(150deg, rgba(34,211,238,0.08), rgba(59,130,246,0.03)),
-    rgba(15, 23, 42, 0.6);
-  transform: translateY(-1px);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 55%),
+    var(--glass-bg);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.12),
-    0 8px 24px rgba(34, 211, 238, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 /* ============================================================
-   INPUT SYSTEM
+   INPUT SYSTEM — frosted fields
    ============================================================ */
 
 .nexus-input {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--r-md);
-  padding: 0.95rem 1rem;
+  padding: 0.95rem 1.1rem;
   color: white;
-  background: rgba(2, 6, 23, 0.62);
-  backdrop-filter: blur(14px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01) 50%),
+    rgba(20, 22, 27, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .nexus-input:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .nexus-input:focus {
-  border-color: rgba(34, 211, 238, 0.45);
+  border-color: rgba(10, 132, 255, 0.65);
   box-shadow:
-    0 0 0 4px rgba(34, 211, 238, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 0 0 4px rgba(10, 132, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 /* ============================================================
@@ -892,50 +1005,168 @@ h3,
 
 .nexus-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.11), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
 }
 
 .nexus-divider-cyan {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(100, 210, 255, 0.25), transparent);
 }
 
 .nexus-divider-glow {
   height: 2px;
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.15), rgba(168, 85, 247, 0.15), transparent);
+  background: linear-gradient(90deg, transparent, rgba(10, 132, 255, 0.2), rgba(100, 210, 255, 0.2), transparent);
   filter: blur(1px);
 }
 
-/* Corner accent decoration */
+/* Corner brackets retired — hard right angles fight the concentric rounding.
+   The class stays so existing markup renders clean. */
 .nexus-corner-accent {
   position: relative;
 }
 
-.nexus-corner-accent::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 24px;
-  height: 24px;
-  border-top: 2px solid rgba(34, 211, 238, 0.2);
-  border-left: 2px solid rgba(34, 211, 238, 0.2);
-  border-radius: 4px 0 0 0;
-  pointer-events: none;
+.nexus-corner-accent::before,
+.nexus-corner-accent::after {
+  content: none;
 }
 
-.nexus-corner-accent::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  right: -1px;
-  width: 24px;
-  height: 24px;
-  border-bottom: 2px solid rgba(34, 211, 238, 0.2);
-  border-right: 2px solid rgba(34, 211, 238, 0.2);
-  border-radius: 0 0 4px 0;
+/* ============================================================
+   SIRI-STYLE EDGE GLOW — Live AI
+   ------------------------------------------------------------
+   Replaces the assistant's bottom-sheet panel. iOS 26 does not
+   put a window on screen for Siri; it lights the edge of the
+   display and leaves the app visible underneath, which is the
+   point — you can still see and use the page you are talking
+   about.
+
+   Built from a rotating conic gradient masked to a band around
+   the border. `transform: rotate` is animated rather than a
+   gradient angle because the angle needs @property, which not
+   every target supports; a transform animates everywhere.
+   ============================================================ */
+
+.nexus-siri {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 420ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.nexus-siri[data-active="true"] {
+  opacity: 1;
+}
+
+.nexus-siri-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 40px;
+  /* The band. `padding` sets its thickness; the XOR mask punches out the
+     middle so only the edge lights up. */
+  padding: 18px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter: blur(16px);
+}
+
+.nexus-siri-ring {
+  position: absolute;
+  /* Oversized and square so the gradient sweeps the corners evenly instead of
+     stretching along the longer axis. */
+  top: 50%;
+  left: 50%;
+  width: 180vmax;
+  height: 180vmax;
+  margin: -90vmax 0 0 -90vmax;
+  background: conic-gradient(
+    from 0deg,
+    #0a84ff,
+    #64d2ff 18%,
+    #30d158 34%,
+    #bf5af2 55%,
+    #ff2d55 72%,
+    #0a84ff 100%
+  );
+  animation: nexus-siri-spin 7s linear infinite;
+}
+
+@keyframes nexus-siri-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Listening is the resting state — calm and slow. */
+.nexus-siri[data-state="listening"] .nexus-siri-ring {
+  animation-duration: 7s;
+}
+
+/* Thinking speeds up, so a pause reads as work rather than a stall. */
+.nexus-siri[data-state="thinking"] .nexus-siri-ring {
+  animation-duration: 1.6s;
+}
+
+/* Speaking breathes: the band swells with the voice. */
+.nexus-siri[data-state="speaking"] .nexus-siri-frame {
+  animation: nexus-siri-breathe 1.9s ease-in-out infinite;
+}
+
+@keyframes nexus-siri-breathe {
+  0%,
+  100% {
+    padding: 16px;
+    opacity: 0.85;
+  }
+  50% {
+    padding: 26px;
+    opacity: 1;
+  }
+}
+
+/* Blocked mic: hold still on red so it reads as a fault, not activity. */
+.nexus-siri[data-state="blocked"] .nexus-siri-ring {
+  background: conic-gradient(from 0deg, #ff453a, #ff8a80 50%, #ff453a);
+  animation: none;
+}
+
+/* The caption. Deliberately a pill, not a panel — it reports what was heard
+   and nothing else. */
+.nexus-siri-caption {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(6.5rem + env(safe-area-inset-bottom));
+  z-index: 91;
+  max-width: min(30rem, calc(100vw - 3rem));
+  padding: 0.7rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(22, 24, 30, 0.55);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: #f5f5f7;
+  font-size: 0.875rem;
+  text-align: center;
+  animation: nexus-fade-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexus-siri-ring,
+  .nexus-siri[data-state="speaking"] .nexus-siri-frame {
+    animation: none !important;
+  }
 }
 
 /* ============================================================
@@ -955,7 +1186,7 @@ h3,
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.065),
+    rgba(255, 255, 255, 0.07),
     transparent
   );
   animation: nexus-shimmer 2.4s infinite;
@@ -974,14 +1205,14 @@ h3,
   animation: nexus-float 5s ease-in-out infinite;
 }
 
-/* Fade-in slide up for dropdowns */
+/* Dropdowns and menus enter on the iOS sheet spring */
 @keyframes nexus-fade-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .nexus-fade-in {
-  animation: nexus-fade-in 0.15s ease-out;
+  animation: nexus-fade-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Subtle breathe animation for premium elements */
@@ -996,8 +1227,8 @@ h3,
 
 /* Glow pulse for rings / decorative elements */
 @keyframes nexus-glow-pulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(34, 211, 238, 0.08); }
-  50% { box-shadow: 0 0 20px rgba(34, 211, 238, 0.18); }
+  0%, 100% { box-shadow: 0 0 8px rgba(10, 132, 255, 0.1); }
+  50% { box-shadow: 0 0 20px rgba(10, 132, 255, 0.22); }
 }
 
 .nexus-glow-pulse {
@@ -1028,13 +1259,13 @@ h3,
   }
 }
 
-/* Only show light-sweep card effect on hover-capable devices */
+/* Specular sweep across the glass — hover-capable devices only */
 @media (hover: hover) {
   .nexus-card-elevated::after {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.06) 48%, transparent 66%);
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.08) 48%, transparent 66%);
     transform: translateX(-120%);
     transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
     pointer-events: none;
@@ -1042,6 +1273,25 @@ h3,
 
   .nexus-card-elevated:hover::after {
     transform: translateX(120%);
+  }
+}
+
+/* Blur is the expensive, motion-sensitive part of the material. When the OS
+   asks for reduced transparency, fall back to opaque surfaces — contrast is
+   preserved because the fallback is darker than the blurred original. */
+@media (prefers-reduced-transparency: reduce) {
+  .nexus-glass,
+  .nexus-card,
+  .nexus-card-premium,
+  .nexus-card-elevated,
+  .nexus-card-cinematic,
+  .nexus-card-float,
+  .nexus-button-secondary,
+  .nexus-button-glossy,
+  .nexus-input {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(24, 26, 32, 0.96);
   }
 }
 
@@ -1053,10 +1303,5 @@ h3,
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-
-  /* Disable grain overlay */
-  .nexus-grain {
-    display: none;
   }
 }

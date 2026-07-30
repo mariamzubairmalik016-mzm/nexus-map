@@ -130,63 +130,62 @@ const Navbar = () => {
     <header
       className={`fixed inset-x-0 top-0 z-[1000] transition-all duration-500 ${
         scrolled
-          ? "border-b border-white/[0.06] bg-[#020617]/85 shadow-[0_20px_60px_rgba(0,0,0,0.3)] backdrop-blur-2xl"
+          ? "border-b border-white/[0.12] bg-white/[0.06] shadow-[0_16px_50px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-3xl backdrop-saturate-[2.2]"
           : "border-b border-transparent bg-transparent"
       }`}
     >
-      {/* Top decorative glow line */}
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent" />
-
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link
           href="/"
           className="group flex min-w-0 items-center gap-3"
           onClick={closeMenus}
         >
-          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-400/15 to-blue-600/15 text-cyan-300 shadow-[0_0_28px_rgba(34,211,238,0.09)] transition-all duration-300 group-hover:shadow-[0_0_40px_rgba(34,211,238,0.18)]">
-            <Map size={24} />
-            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-[#020617] bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" />
+          {/* App-icon squircle: the iOS 26 continuous-corner tile, tinted systemBlue */}
+          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-b from-[#3aa0ff] to-[#0a84ff] text-white shadow-[0_8px_20px_rgba(10,132,255,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] transition-all duration-300 group-hover:shadow-[0_10px_28px_rgba(10,132,255,0.5),inset_0_1px_0_rgba(255,255,255,0.4)]">
+            <Map size={23} strokeWidth={2.2} />
+            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-[#060709] bg-emerald-400" />
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-xl font-black tracking-tight text-white sm:text-2xl">
-              NEXUS MAP
+            <p className="truncate text-[1.35rem] font-semibold tracking-[-0.03em] text-white sm:text-[1.5rem]">
+              Nexus Map
             </p>
-            <p className="hidden text-[9px] font-bold uppercase tracking-[0.32em] text-cyan-400 sm:block">
+            <p className="hidden text-[10px] font-medium tracking-[0.02em] text-white/45 sm:block">
               Explore anywhere
             </p>
           </div>
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center rounded-2xl border border-white/[0.06] bg-white/[0.025] p-1 lg:flex shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        {/* Segmented-control nav: a glass track with a raised pill on the
+            active item, the way iOS marks selection. */}
+        <nav className="hidden items-center gap-0.5 rounded-full border border-white/[0.10] bg-white/[0.05] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl backdrop-saturate-[1.8] lg:flex">
           {navigationLinks.map((item) => (
             <Link
               key={item.path}
               href={item.path}
-              className={`relative rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 ${
+              aria-current={isActive(item.path) ? "page" : undefined}
+              className={`relative rounded-full px-4 py-2 text-[0.8125rem] font-medium tracking-[-0.01em] transition-all duration-300 ${
                 isActive(item.path)
-                  ? "bg-white/[0.07] text-white shadow-inner"
-                  : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
+                  ? "bg-white/[0.16] text-white shadow-[0_2px_8px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]"
+                  : "text-white/55 hover:bg-white/[0.07] hover:text-white"
               }`}
             >
               {item.label}
-              {isActive(item.path) && (
-                <span className="absolute inset-x-4 -bottom-1 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
-              )}
             </Link>
           ))}
 
           {user && (
             <Link
               href="/ai-planner"
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 ${
+              aria-current={isActive("/ai-planner") ? "page" : undefined}
+              className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[0.8125rem] font-medium tracking-[-0.01em] transition-all duration-300 ${
                 isActive("/ai-planner")
-                  ? "bg-purple-400/10 text-purple-200"
-                  : "text-purple-300 hover:bg-purple-400/[0.08]"
+                  ? "bg-purple-400/20 text-purple-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]"
+                  : "text-purple-300 hover:bg-purple-400/[0.12]"
               }`}
             >
-              <Bot size={16} />
+              <Bot size={15} />
               AI Planner
             </Link>
           )}
@@ -198,14 +197,14 @@ const Navbar = () => {
             <>
               <Link
                 href="/login"
-                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 transition-all duration-300 hover:bg-white/[0.05] hover:text-white"
+                className="rounded-full px-4 py-2.5 text-sm font-medium text-white/70 transition-all duration-300 hover:bg-white/[0.07] hover:text-white"
               >
                 Login
               </Link>
 
               <Link
                 href="/signup"
-                className="nexus-button-primary px-5 py-2.5 text-sm"
+                className="nexus-button-primary nexus-button-sm"
               >
                 <Sparkles size={16} />
                 Sign Up
@@ -220,13 +219,13 @@ const Navbar = () => {
                     ? `Notifications, ${unreadCount} unread`
                     : "Notifications"
                 }
-                className="relative rounded-xl border border-white/[0.07] bg-white/[0.03] p-2.5 text-slate-300 transition-all duration-300 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] hover:text-white"
+                className="relative rounded-full border border-white/[0.10] bg-white/[0.05] p-2.5 text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition-all duration-300 hover:border-white/20 hover:bg-white/[0.10] hover:text-white"
               >
                 <Bell size={19} aria-hidden="true" />
                 {unreadCount > 0 && (
                   <span
                     aria-hidden="true"
-                    className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#020617] bg-red-500 px-1 text-[9px] font-black text-white shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+                    className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#0c0d11] bg-[#ff453a] px-1 text-[10px] font-semibold text-white"
                   >
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
@@ -242,24 +241,24 @@ const Navbar = () => {
                   aria-expanded={profileOpen}
                   aria-controls="account-menu"
                   aria-label="Account menu"
-                  className="flex max-w-72 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 transition-all duration-300 hover:border-cyan-400/20 hover:bg-white/[0.055]"
+                  className="flex max-w-72 items-center gap-3 rounded-full border border-white/[0.10] bg-white/[0.05] py-1.5 pl-1.5 pr-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition-all duration-300 hover:border-white/20 hover:bg-white/[0.10]"
                 >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400/15 to-purple-400/15 text-cyan-300">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-[#3aa0ff] to-[#0a84ff] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3)]">
                     <UserRound size={18} />
                   </div>
 
                   <div className="min-w-0 text-left">
-                    <p className="truncate text-sm font-bold text-white">
+                    <p className="truncate text-sm font-medium tracking-[-0.01em] text-white">
                       {profile?.full_name || user.email?.split("@")[0]}
                     </p>
-                    <p className="text-[11px] capitalize text-slate-500">
+                    <p className="text-[11px] capitalize text-white/45">
                       {profile?.role || "user"} account
                     </p>
                   </div>
 
                   <ChevronDown
                     size={16}
-                    className={`shrink-0 text-slate-500 transition-transform duration-300 ${
+                    className={`shrink-0 text-white/40 transition-transform duration-300 ${
                       profileOpen ? "rotate-180" : ""
                     }`}
                   />
@@ -270,30 +269,30 @@ const Navbar = () => {
                     id="account-menu"
                     role="menu"
                     aria-label="Account"
-                    className="nexus-fade-in absolute right-0 top-full mt-3 w-72 overflow-hidden rounded-3xl border border-white/[0.08] bg-[#07101f]/95 p-2 shadow-[0_28px_80px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
+                    className="nexus-fade-in absolute right-0 top-full mt-3 w-72 origin-top-right overflow-hidden rounded-[26px] border border-white/[0.12] bg-white/[0.07] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-[1.8]"
                   >
-                    <div className="rounded-2xl bg-gradient-to-r from-cyan-400/[0.07] to-purple-400/[0.07] px-4 py-3">
-                      <p className="truncate text-sm font-bold text-white">
+                    <div className="rounded-[18px] bg-white/[0.06] px-4 py-3">
+                      <p className="truncate text-sm font-semibold tracking-[-0.01em] text-white">
                         {profile?.full_name || "Nexus Explorer"}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-slate-500">
+                      <p className="mt-0.5 truncate text-xs text-white/45">
                         {user.email}
                       </p>
                     </div>
 
-                    <div className="mt-2">
+                    <div className="mt-1.5">
                       {accountLinks.map(({ path, label, icon: Icon }) => (
                         <Link
                           key={path}
                           href={path}
                           onClick={closeMenus}
-                          className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                          className={`flex items-center gap-3 rounded-[18px] px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                             isActive(path)
-                              ? "bg-cyan-400/[0.08] text-cyan-200"
-                              : "text-slate-300 hover:bg-white/[0.045] hover:text-white"
+                              ? "bg-white/[0.10] text-white"
+                              : "text-white/70 hover:bg-white/[0.06] hover:text-white"
                           }`}
                         >
-                          <Icon size={17} />
+                          <Icon size={17} className={isActive(path) ? "text-[#64d2ff]" : "text-white/50"} />
                           {label}
                         </Link>
                       ))}
@@ -303,19 +302,19 @@ const Navbar = () => {
                       <Link
                         href="/admin"
                         onClick={closeMenus}
-                        className="mt-1 flex items-center gap-3 rounded-xl bg-purple-400/[0.07] px-4 py-3 text-sm font-semibold text-purple-200 transition-all duration-200 hover:bg-purple-400/[0.12]"
+                        className="mt-1 flex items-center gap-3 rounded-[18px] px-4 py-2.5 text-sm font-medium text-purple-300 transition-all duration-200 hover:bg-purple-400/[0.12]"
                       >
                         <ShieldCheck size={17} />
                         Admin Control Center
                       </Link>
                     )}
 
-                    <div className="my-2 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+                    <div className="my-1.5 h-px bg-white/[0.10]" />
 
                     <button
                       type="button"
                       onClick={() => void handleLogout()}
-                      className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold text-red-300 transition-all duration-200 hover:bg-red-400/[0.08]"
+                      className="flex w-full items-center gap-3 rounded-[18px] px-4 py-2.5 text-left text-sm font-medium text-[#ff453a] transition-all duration-200 hover:bg-[#ff453a]/[0.12]"
                     >
                       <LogOut size={17} />
                       Logout
@@ -334,7 +333,7 @@ const Navbar = () => {
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
           aria-expanded={mobileOpen}
           aria-controls="mobile-menu"
-          className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-2.5 text-white transition-all duration-200 hover:border-cyan-400/20 hover:bg-cyan-400/[0.06] lg:hidden"
+          className="rounded-full border border-white/[0.10] bg-white/[0.05] p-2.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition-all duration-200 hover:border-white/20 hover:bg-white/[0.10] lg:hidden"
         >
           {mobileOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}
         </button>
@@ -342,17 +341,18 @@ const Navbar = () => {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div id="mobile-menu" className="border-t border-white/[0.06] bg-[#020617]/98 px-4 py-4 shadow-2xl backdrop-blur-2xl lg:hidden">
-          <nav className="mx-auto flex max-w-7xl flex-col gap-1">
+        <div id="mobile-menu" className="nexus-fade-in border-t border-white/[0.10] bg-[#0c0d11]/80 px-4 py-4 shadow-[0_28px_80px_rgba(0,0,0,0.5)] backdrop-blur-2xl backdrop-saturate-[1.8] lg:hidden">
+          <nav className="mx-auto flex max-w-7xl flex-col gap-0.5">
             {navigationLinks.map((item) => (
               <Link
                 key={item.path}
                 href={item.path}
                 onClick={closeMenus}
-                className={`rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 ${
+                aria-current={isActive(item.path) ? "page" : undefined}
+                className={`rounded-[18px] px-4 py-3 text-[0.9375rem] font-medium tracking-[-0.01em] transition-all duration-200 ${
                   isActive(item.path)
-                    ? "bg-cyan-400/[0.08] text-cyan-200"
-                    : "text-slate-300 hover:bg-white/[0.04]"
+                    ? "bg-white/[0.10] text-white"
+                    : "text-white/70 hover:bg-white/[0.06]"
                 }`}
               >
                 {item.label}
@@ -361,7 +361,7 @@ const Navbar = () => {
 
             {user ? (
               <>
-                <div className="my-2 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+                <div className="my-2 h-px bg-white/[0.10]" />
 
                 {[  { path: "/ai-planner", label: "AI Planner" },
                 { path: "/smart-tourism", label: "Smart Tourism" },
@@ -372,7 +372,7 @@ const Navbar = () => {
                       key={item.path}
                       href={item.path}
                       onClick={closeMenus}
-                      className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 transition-all duration-200 hover:bg-white/[0.04]"
+                      className="rounded-[18px] px-4 py-3 text-[0.9375rem] font-medium tracking-[-0.01em] text-white/70 transition-all duration-200 hover:bg-white/[0.06]"
                     >
                       {item.label}
                     </Link>
@@ -383,7 +383,7 @@ const Navbar = () => {
                   <Link
                     href="/admin"
                     onClick={closeMenus}
-                    className="rounded-xl px-4 py-3 text-sm font-semibold text-purple-300 transition-all duration-200 hover:bg-purple-400/[0.08]"
+                    className="rounded-[18px] px-4 py-3 text-[0.9375rem] font-medium text-purple-300 transition-all duration-200 hover:bg-purple-400/[0.12]"
                   >
                     Admin Panel
                   </Link>
@@ -392,7 +392,7 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
-                  className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-red-300 transition-all duration-200 hover:bg-red-400/[0.08]"
+                  className="rounded-[18px] px-4 py-3 text-left text-[0.9375rem] font-medium text-[#ff453a] transition-all duration-200 hover:bg-[#ff453a]/[0.12]"
                 >
                   Logout
                 </button>
@@ -402,14 +402,14 @@ const Navbar = () => {
                 <Link
                   href="/login"
                   onClick={closeMenus}
-                  className="rounded-xl border border-white/[0.08] px-4 py-3 text-center text-sm font-semibold transition-all duration-200 hover:border-white/20"
+                  className="nexus-button-secondary nexus-button-block"
                 >
                   Login
                 </Link>
                 <Link
                   href="/signup"
                   onClick={closeMenus}
-                  className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 text-center text-sm font-black text-slate-950 shadow-[0_8px_24px_rgba(14,165,233,0.15)]"
+                  className="nexus-button-primary nexus-button-block"
                 >
                   Sign Up
                 </Link>

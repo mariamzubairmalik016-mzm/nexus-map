@@ -26,7 +26,7 @@ const osmStyle = (): StyleSpecification => ({
   layers: [
     // Dark canvas beneath the tiles so the app's look holds while tiles load
     // and wherever coverage is missing.
-    { id: "background", type: "background", paint: { "background-color": "#050816" } },
+    { id: "background", type: "background", paint: { "background-color": "#060709" } },
     {
       id: "osm-raster",
       type: "raster",
@@ -54,7 +54,7 @@ const tomtomStyle = (): StyleSpecification => ({
     },
   },
   layers: [
-    { id: "background", type: "background", paint: { "background-color": "#050816" } },
+    { id: "background", type: "background", paint: { "background-color": "#060709" } },
     {
       id: "tomtom-raster",
       type: "raster",
@@ -80,12 +80,19 @@ const googleStyle = (): StyleSpecification => ({
     },
   },
   layers: [
-    { id: "background", type: "background", paint: { "background-color": "#050816" } },
+    { id: "background", type: "background", paint: { "background-color": "#060709" } },
     {
       id: "google-raster",
       type: "raster",
       source: "google-raster",
-      paint: {},
+      paint: {
+        // The other two providers were already dimmed to sit inside the dark
+        // UI; Google was left raw and glared against it. Same treatment, a
+        // touch stronger because Google's default basemap is the brightest.
+        "raster-brightness-max": 0.78,
+        "raster-saturation": -0.4,
+        "raster-contrast": 0.14,
+      },
     },
   ],
 });

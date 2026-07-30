@@ -46,18 +46,18 @@ const CinematicBackground = () => {
       <svg className="nexus-bg-lines" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
         <defs>
           <linearGradient id="nexusRouteGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#22d3ee" stopOpacity="0" />
-            <stop offset="0.5" stopColor="#22d3ee" />
-            <stop offset="1" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0" stopColor="#64d2ff" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#64d2ff" />
+            <stop offset="1" stopColor="#0a84ff" stopOpacity="0" />
           </linearGradient>
           <linearGradient id="nexusRouteGrad2" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#a855f7" stopOpacity="0" />
-            <stop offset="0.5" stopColor="#a855f7" />
-            <stop offset="1" stopColor="#34d399" stopOpacity="0" />
+            <stop offset="0" stopColor="#bf5af2" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#bf5af2" />
+            <stop offset="1" stopColor="#30d158" stopOpacity="0" />
           </linearGradient>
           <radialGradient id="nexusGlowGrad">
-            <stop offset="0" stopColor="#22d3ee" stopOpacity="0.5" />
-            <stop offset="1" stopColor="#22d3ee" stopOpacity="0" />
+            <stop offset="0" stopColor="#64d2ff" stopOpacity="0.5" />
+            <stop offset="1" stopColor="#64d2ff" stopOpacity="0" />
           </radialGradient>
         </defs>
 
@@ -83,25 +83,25 @@ const CinematicBackground = () => {
         />
 
         {/* Glowing location points */}
-        <g fill="#34d399">
+        <g fill="#30d158">
           <circle className="nexus-dot" cx="300" cy="560" r="3.5" />
           <circle className="nexus-dot" cx="900" cy="500" r="3.5" style={{ animationDelay: "-1.6s" }} />
           <circle className="nexus-dot" cx="720" cy="380" r="2.5" style={{ animationDelay: "-3.2s" }} />
         </g>
-        <g fill="#22d3ee">
+        <g fill="#64d2ff">
           <circle className="nexus-dot" cx="1050" cy="380" r="3.5" style={{ animationDelay: "-2.4s" }} />
           <circle className="nexus-dot" cx="620" cy="300" r="3" style={{ animationDelay: "-0.8s" }} />
         </g>
-        <g fill="#a855f7">
+        <g fill="#bf5af2">
           <circle className="nexus-dot" cx="480" cy="420" r="2.5" style={{ animationDelay: "-4s" }} />
           <circle className="nexus-dot" cx="1180" cy="520" r="2.5" style={{ animationDelay: "-1.2s" }} />
         </g>
 
         {/* Decorative concentric rings */}
-        <circle cx="300" cy="460" r="40" fill="none" stroke="rgba(52, 211, 153, 0.04)" strokeWidth="1" />
-        <circle cx="300" cy="460" r="60" fill="none" stroke="rgba(52, 211, 153, 0.03)" strokeWidth="0.5" />
-        <circle cx="1050" cy="280" r="35" fill="none" stroke="rgba(34, 211, 238, 0.04)" strokeWidth="1" />
-        <circle cx="1050" cy="280" r="55" fill="none" stroke="rgba(34, 211, 238, 0.025)" strokeWidth="0.5" />
+        <circle cx="300" cy="460" r="40" fill="none" stroke="rgba(48, 209, 88, 0.04)" strokeWidth="1" />
+        <circle cx="300" cy="460" r="60" fill="none" stroke="rgba(48, 209, 88, 0.03)" strokeWidth="0.5" />
+        <circle cx="1050" cy="280" r="35" fill="none" stroke="rgba(100, 210, 255, 0.04)" strokeWidth="1" />
+        <circle cx="1050" cy="280" r="55" fill="none" stroke="rgba(100, 210, 255, 0.025)" strokeWidth="0.5" />
       </svg>
 
       {/* Spotlight (cursor follow) */}

@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
+  themeColor: "#060709",
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
@@ -55,16 +55,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${spaceGrotesk.variable} ${marcellus.variable} font-sans antialiased bg-[#020617] text-white`}>
+      <body className={`${inter.variable} ${spaceGrotesk.variable} ${marcellus.variable} font-sans antialiased bg-[#060709] text-white`}>
         <Providers>
           {/* Keyboard users can jump straight to content, past the 8-item nav. */}
           <a
             href="#main"
-            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[2000] focus:rounded-xl focus:bg-cyan-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-950"
+            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[2000] focus:rounded-full focus:bg-[#0a84ff] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
           >
             Skip to main content
           </a>
-          <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
+          {/* Transparent on purpose: the coloured backdrop lives on <body>, and
+              an opaque wrapper here would cover it so the glass had nothing to
+              refract. */}
+          <div className="relative min-h-screen overflow-x-hidden text-white">
             <CinematicBackground />
             <Navbar />
             <main id="main" tabIndex={-1} className="relative z-10 min-h-[calc(100dvh-80px)] pt-20 focus:outline-none">

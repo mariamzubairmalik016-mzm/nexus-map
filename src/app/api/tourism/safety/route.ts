@@ -8,7 +8,7 @@ const EMERGENCY_NUMBERS = [
   { name: "Tourist Police", number: "118", icon: "MapPin" },
 ];
 
-import { searchCategoryTomTom } from "../../../../services/tomtom.service";
+import { searchNearbyPoiTomTom } from "../../../../services/tomtom.service";
 
 const SAFETY_TIPS = [
   "Share your live location with family members",
@@ -64,33 +64,64 @@ export async function GET(req: NextRequest) {
         const userLat = parseFloat(lat);
         const userLng = parseFloat(lng);
 
-        // Map facility types to TomTom category sets
-        // 7321 = Hospital, 7326 = Pharmacy, 7322 = Police
-        let categorySets = [];
-        if (facilityType === "emergency" || facilityType === "hospital") categorySets.push("7321");
-        if (facilityType === "pharmacy" || facilityType === "all") categorySets.push("7326");
-        if (facilityType === "all") categorySets.push("7321");
+        /**
+         * Search terms, not `categorySet`. TomTom returns zero results for
+         * every categorySet query on this account, so the previous
+         * implementation could only ever produce an empty list — the Safety
+         * Centre's "no facilities nearby" was the API being asked wrongly,
+         * not the area being empty. The term also carries the type, which is
+         * what the old code tried (and mostly failed) to infer from a
+         * free-text category string.
+         */
+        const TERMS: Record<string, Array<{ term: string; type: string; emergency: boolean }>> = {
+          hospital: [{ term: "hospital", type: "hospital", emergency: true }],
+          clinic: [{ term: "clinic", type: "clinic", emergency: false }],
+          pharmacy: [{ term: "pharmacy", type: "pharmacy", emergency: false }],
+          blood_bank: [{ term: "blood bank", type: "blood_bank", emergency: true }],
+          emergency: [{ term: "emergency hospital", type: "hospital", emergency: true }],
+          all: [
+            { term: "hospital", type: "hospital", emergency: true },
+            { term: "clinic", type: "clinic", emergency: false },
+            { term: "pharmacy", type: "pharmacy", emergency: false },
+          ],
+        };
 
-        const categorySetString = categorySets.join(",");
-        
+        const searches = TERMS[facilityType] ?? TERMS.all;
+
         try {
-          const liveData = await searchCategoryTomTom(categorySetString, userLat, userLng, 25000, 20);
-          
-          const facilities = liveData.map((f) => {
-            const isHosp = f.category?.toLowerCase().includes("hospital") || false;
-            return {
-              id: f.id,
-              name: f.name,
-              type: isHosp ? "hospital" : "pharmacy",
-              latitude: f.position.latitude,
-              longitude: f.position.longitude,
-              address: f.address,
-              phone: f.phone || "",
-              emergency: isHosp,
-              open24Hours: true, // Guessed for emergency facilities
-              distance: Math.round(f.distance || 0),
-            };
-          });
+          const settled = await Promise.all(
+            searches.map(async (search) => {
+              try {
+                const results = await searchNearbyPoiTomTom(search.term, userLat, userLng, 25000, 15);
+                return results.map((f) => ({
+                  id: f.id,
+                  name: f.name,
+                  type: search.type,
+                  latitude: f.position.latitude,
+                  longitude: f.position.longitude,
+                  address: f.address,
+                  phone: f.phone || "",
+                  emergency: search.emergency,
+                  // Not published by the search API — claiming "open 24 hours"
+                  // for every result would be a dangerous guess in a safety
+                  // feature, so only genuine emergency facilities get it.
+                  open24Hours: search.emergency,
+                  distance: Math.round(f.distance || 0),
+                }));
+              } catch {
+                // One term failing shouldn't empty the whole list.
+                return [];
+              }
+            }),
+          );
+
+          // A pharmacy inside a hospital can come back from both searches.
+          const byId = new Map<string, (typeof settled)[number][number]>();
+          for (const facility of settled.flat()) {
+            if (!byId.has(facility.id)) byId.set(facility.id, facility);
+          }
+
+          const facilities = [...byId.values()].sort((a, b) => a.distance - b.distance);
 
           return NextResponse.json({ success: true, data: facilities });
         } catch (err) {

@@ -1,6 +1,66 @@
-// Force NextAuth to use the live Vercel URL, overriding any broken dashboard settings
-if (process.env.VERCEL_URL) {
-  process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
+/**
+ * Pin NextAuth to a STABLE URL when running on Vercel.
+ *
+ * NextAuth builds the OAuth callback from `NEXTAUTH_URL`, and Google matches
+ * redirect URIs exactly — no wildcards. This previously used `VERCEL_URL`,
+ * which is the *per-deployment* host (`nexus-ow2eg8an5-….vercel.app`) and is
+ * different on every single deploy. So the callback Google was sent could
+ * never be one of the registered URIs, and re-registering after each deploy
+ * would be the only way to keep it working. That is why Google sign-in fails
+ * on the deployed site while email/password keeps working.
+ *
+ * Order of preference:
+ *   1. `NEXTAUTH_URL`, when it has actually been set to the live domain.
+ *   2. `VERCEL_PROJECT_PRODUCTION_URL` — Vercel's stable production host.
+ *   3. `VERCEL_URL` as a last resort, so the app still runs; Google sign-in
+ *      will not work on that URL, but nothing else breaks.
+ *
+ * Untouched off Vercel, where `NEXTAUTH_URL=http://localhost:3000` is right.
+ */
+/**
+ * A value pasted into a hosting dashboard very often arrives with a trailing
+ * newline, and this deployment had exactly that: `NEXTAUTH_URL` was
+ * "https://nexus-map-pi.vercel.app\n". `new URL()` rejects it, so NextAuth
+ * silently discarded it and inferred the origin from the request headers —
+ * which on Vercel is the *per-deployment* host, different on every deploy and
+ * therefore impossible to register with Google. Sign-in worked for whoever
+ * already held a session cookie and for nobody else.
+ *
+ * Trimmed and validated here rather than trusted, because the same paste
+ * mistake will happen again and it presents as an unexplained auth failure.
+ */
+const cleanOrigin = (value: string | undefined): string | null => {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  try {
+    // `origin` also drops any stray path or trailing slash.
+    return new URL(trimmed).origin;
+  } catch {
+    return null;
+  }
+};
+
+if (process.env.VERCEL) {
+  const configured = cleanOrigin(process.env.NEXTAUTH_URL);
+  const usable = configured && !/localhost|127\.0\.0\.1/.test(configured);
+
+  // Write the cleaned value back so NextAuth reads a URL it can actually parse.
+  if (usable) process.env.NEXTAUTH_URL = configured!;
+
+  if (!usable) {
+    const stable = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    const host = stable || process.env.VERCEL_URL;
+
+    if (host) {
+      process.env.NEXTAUTH_URL = `https://${host}`;
+      if (!stable) {
+        console.warn(
+          "[auth] Falling back to this deployment's own URL. Google sign-in needs a " +
+            "stable domain — set NEXTAUTH_URL in the Vercel project settings.",
+        );
+      }
+    }
+  }
 }
 
 import NextAuth, { AuthOptions } from "next-auth";

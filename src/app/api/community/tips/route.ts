@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { db } from "../../../../db";
 import { communityTips } from "../../../../db/schema";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+import { engagementFor, emptyEngagement, viewerFromSession } from "../../../../db/communityEngagement";
 
 /**
  * No seed fallback.
@@ -23,20 +24,29 @@ export async function GET(req: NextRequest) {
       // Drizzle's select builder returns a different type from .where(), so a
       // reassigned `let` does not typecheck. Decide the condition first.
       const where = category && category !== "all" ? eq(communityTips.category, category) : undefined;
+      // Newest first. Ascending put the oldest tip at the top of the feed,
+      // so a new post appeared at the bottom and looked like it had failed.
       const data = await db
         .select()
         .from(communityTips)
         .where(where)
-        .orderBy(communityTips.createdAt);
-      if (data.length > 0) return NextResponse.json({ success: true, data });
-    } catch {
-      // DB not available
-    }
+        .orderBy(desc(communityTips.createdAt));
 
-    let results: any[] = [];
-    if (category && category !== "all") results = results.filter(t => t.category === category);
-    results.sort((a, b) => b.likes - a.likes);
-    return NextResponse.json({ success: true, data: results });
+      // Counts come from community_reactions/community_comments, not the
+      // stale integer columns on this table.
+      const viewer = await viewerFromSession();
+      const engagement = await engagementFor("tip", data.map((t) => t.id), viewer?.id ?? null);
+
+      return NextResponse.json({
+        success: true,
+        data: data.map((tip) => ({ ...tip, engagement: engagement[tip.id] ?? emptyEngagement() })),
+      });
+    } catch (dbError) {
+      return NextResponse.json(
+        { success: false, message: (dbError as Error).message },
+        { status: 500 },
+      );
+    }
   } catch (error) {
     return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
   }

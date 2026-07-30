@@ -144,7 +144,7 @@ const Dashboard = () => {
                 aria-valuemin={0}
                 aria-valuemax={100}
               >
-                <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" style={{ width: `${storage.percent}%` }} />
+                <div className="h-full bg-[#0a84ff]" style={{ width: `${storage.percent}%` }} />
               </div>
             )}
           </div>

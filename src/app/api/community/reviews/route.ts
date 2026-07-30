@@ -4,7 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { db } from "../../../../db";
 import { tourismReviews } from "../../../../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
+import { engagementFor, emptyEngagement, viewerFromSession } from "../../../../db/communityEngagement";
 
 /**
  * No seed fallback.
@@ -32,22 +33,32 @@ export async function GET(req: NextRequest) {
       // Same reason as tips: .where() changes the builder's type, so the
       // condition is decided before the query is built.
       const where = placeId ? eq(tourismReviews.placeId, placeId) : undefined;
+      // Newest first, so a review you just posted appears at the top.
       const data = await db
         .select()
         .from(tourismReviews)
         .where(where)
-        .orderBy(tourismReviews.createdAt);
-      if (data.length > 0) {
-        const mapped = data.map(r => ({ ...r, images: JSON.parse(r.images || "[]") }));
-        return NextResponse.json({ success: true, data: mapped });
-      }
-    } catch {
-      // DB not available, use seed
-    }
+        .orderBy(desc(tourismReviews.createdAt));
 
-    let results: any[] = [];
-    if (placeId) results = results.filter(r => r.placeId === placeId);
-    return NextResponse.json({ success: true, data: results });
+      const viewer = await viewerFromSession();
+      const engagement = await engagementFor("review", data.map((r) => r.id), viewer?.id ?? null);
+
+      return NextResponse.json({
+        success: true,
+        data: data.map((review) => ({
+          ...review,
+          images: JSON.parse(review.images || "[]"),
+          // `mine` drives the "your review" affordance without exposing ids.
+          mine: viewer ? review.userId === viewer.id : false,
+          engagement: engagement[review.id] ?? emptyEngagement(),
+        })),
+      });
+    } catch (dbError) {
+      return NextResponse.json(
+        { success: false, message: (dbError as Error).message },
+        { status: 500 },
+      );
+    }
   } catch (error) {
     return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
   }

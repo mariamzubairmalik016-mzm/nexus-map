@@ -7,6 +7,8 @@ import {
   serial,
   varchar,
   doublePrecision,
+  index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccount } from "next-auth/adapters";
 
@@ -223,6 +225,61 @@ export const groupMembers = pgTable("group_members", {
   role: varchar("role", { length: 20 }).default("member"),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 });
+
+/**
+ * Reactions — likes, bookmarks and "helpful" votes.
+ *
+ * `community_tips.likes` and `tourism_reviews.likes` are plain integer
+ * counters with no record of *who* reacted, so nothing could tell whether the
+ * current user had already liked something, un-liking was impossible, and one
+ * account could increment a counter forever. One row per (user, target,
+ * kind) makes the count derivable and the toggle honest.
+ *
+ * `targetId` is polymorphic (a tip or a review), so it carries no foreign key
+ * — the pairing with `targetType` is what identifies the row. Deleting a tip
+ * therefore leaves its reactions behind; they are filtered out by the join on
+ * read, and a cleanup is cheap if it ever matters.
+ */
+export const communityReactions = pgTable(
+  "community_reactions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    targetType: varchar("target_type", { length: 20 }).notNull(), // "tip" | "review"
+    targetId: text("target_id").notNull(),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(), // "like" | "bookmark" | "helpful"
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    // The database, not the route handler, is what guarantees one reaction per
+    // person: two concurrent taps would otherwise both pass an existence check.
+    unique: uniqueIndex("community_reactions_unique_idx").on(
+      table.targetType,
+      table.targetId,
+      table.userId,
+      table.kind,
+    ),
+    byTarget: index("community_reactions_target_idx").on(table.targetType, table.targetId),
+  }),
+);
+
+export const communityComments = pgTable(
+  "community_comments",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    targetType: varchar("target_type", { length: 20 }).notNull(),
+    targetId: text("target_id").notNull(),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+    // Denormalised so a comment still renders if the display name changes,
+    // matching what tips and reviews already do.
+    userName: text("user_name").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    byTarget: index("community_comments_target_idx").on(table.targetType, table.targetId),
+  }),
+);
 
 export const sosAlerts = pgTable("sos_alerts", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

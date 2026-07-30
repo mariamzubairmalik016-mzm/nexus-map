@@ -828,7 +828,7 @@ const MapPage = () => {
   };
 
   return (
-    <section className="min-h-[calc(100dvh-80px)] bg-[#020617] px-3 py-6 sm:px-6 lg:px-8">
+    <section className="min-h-[calc(100dvh-80px)] px-3 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1800px]">
         <div className="mb-6">
           <p className="text-sm uppercase tracking-[0.28em] text-cyan-400">
@@ -1078,7 +1078,7 @@ const MapPage = () => {
                     aria-valuemax={100}
                   >
                     <div
-                      className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-[width]"
+                      className="h-full bg-[#0a84ff] transition-[width]"
                       style={{ width: `${offlineState.percent}%` }}
                     />
                   </div>
@@ -1098,7 +1098,7 @@ const MapPage = () => {
               type="button"
               onClick={() => void calculateRoutes()}
               disabled={busy}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 py-4 font-semibold"
+              className="nexus-button-primary nexus-button-block mt-4"
             >
               <Navigation size={18} />
               {busy
@@ -1167,7 +1167,7 @@ const MapPage = () => {
                     onClick={() =>
                       live.start(selectedRoute, destination)
                     }
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3 font-semibold text-slate-950"
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[#30d158] py-3 font-semibold text-[#06210f]"
                   >
                     <PlayCircle size={18} />
                     Start Navigation

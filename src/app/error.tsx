@@ -45,7 +45,7 @@ export default function Error({
           <button
             type="button"
             onClick={reset}
-            className="inline-flex items-center gap-2 rounded-xl bg-cyan-500/90 px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-cyan-400"
+            className="inline-flex items-center gap-2 rounded-xl bg-cyan-500/90 px-4 py-2 text-sm font-medium text-white transition hover:bg-cyan-400"
           >
             <RotateCcw size={15} aria-hidden="true" /> Try again
           </button>

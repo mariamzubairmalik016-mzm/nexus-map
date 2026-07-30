@@ -10,7 +10,7 @@ const items = [
 ];
 
 const Features = () => (
-  <section className="relative bg-[#020617] px-4 py-24 sm:px-6 lg:px-8">
+  <section className="relative px-4 py-24 sm:px-6 lg:px-8">
     {/* Section header glow */}
     <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(ellipse_60%_80%_at_50%_-20%,rgba(34,211,238,0.06),transparent)]" />
 

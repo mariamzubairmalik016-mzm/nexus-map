@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { db } from "../../../../db";
 import { travelGroups, groupMembers } from "../../../../db/schema";
-import { eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { viewerFromSession } from "../../../../db/communityEngagement";
 
 /**
  * No seed fallback.
@@ -27,22 +28,41 @@ export async function GET(req: NextRequest) {
             like(sql`LOWER(${travelGroups.description})`, `%${q}%`),
           )
         : undefined;
-      const query = db.select().from(travelGroups).where(where);
-      const data = await query.orderBy(travelGroups.memberCount);
-      if (data.length > 0) {
-        const mapped = data.map(g => ({ ...g, tags: JSON.parse(g.tags || "[]") }));
-        return NextResponse.json({ success: true, data: mapped });
-      }
-    } catch {
-      // DB not available
-    }
+      // Biggest first. Ascending buried the busiest groups at the bottom.
+      const data = await db.select().from(travelGroups).where(where).orderBy(desc(travelGroups.memberCount));
 
-    let results: any[] = [];
-    if (search) {
-      const q = search.toLowerCase();
-      results = results.filter(g => g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q));
+      // Which of these the viewer has already joined, so the card can offer
+      // Leave instead of Join. One query for the whole page, not one per card.
+      const viewer = await viewerFromSession();
+      let joinedIds = new Set<string>();
+      if (viewer && data.length > 0) {
+        const rows = await db
+          .select({ groupId: groupMembers.groupId, role: groupMembers.role })
+          .from(groupMembers)
+          .where(
+            and(
+              eq(groupMembers.userId, viewer.id),
+              inArray(groupMembers.groupId, data.map((g) => g.id)),
+            ),
+          );
+        joinedIds = new Set(rows.map((r) => r.groupId));
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: data.map((group) => ({
+          ...group,
+          tags: JSON.parse(group.tags || "[]"),
+          joined: joinedIds.has(group.id),
+          isOwner: viewer ? group.createdBy === viewer.id : false,
+        })),
+      });
+    } catch (dbError) {
+      return NextResponse.json(
+        { success: false, message: (dbError as Error).message },
+        { status: 500 },
+      );
     }
-    return NextResponse.json({ success: true, data: results.map(g => ({ ...g, tags: JSON.parse(g.tags) })) });
   } catch (error) {
     return NextResponse.json({ success: false, message: (error as Error).message }, { status: 500 });
   }

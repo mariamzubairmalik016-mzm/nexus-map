@@ -140,7 +140,7 @@ const alertPinHtml = (alert: RoadAlert) => {
 };
 
 const dotHtml = (color: string, label: string) =>
-  `<div title="${label}" style="width:26px;height:26px;border-radius:9999px;background:${color};border:3px solid #020617;box-shadow:0 4px 16px rgba(0,0,0,.55);display:grid;place-items:center;color:#020617;font-weight:800;font-size:11px">${label.charAt(0)}</div>`;
+  `<div title="${label}" style="width:26px;height:26px;border-radius:9999px;background:${color};border:3px solid #060709;box-shadow:0 4px 16px rgba(0,0,0,.55);display:grid;place-items:center;color:#060709;font-weight:800;font-size:11px">${label.charAt(0)}</div>`;
 
 const googlePinHtml = () => `
   <svg width="32" height="48" viewBox="0 0 32 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="cursor:pointer; filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.4));">

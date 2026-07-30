@@ -5,6 +5,27 @@ import type {
   Comment,
 } from "../types/tourism";
 import { api } from "./api";
+
+/** Counts and the viewer's own state, computed server-side from real rows. */
+export type Engagement = {
+  likes: number;
+  bookmarks: number;
+  helpful: number;
+  comments: number;
+  viewer: { liked: boolean; bookmarked: boolean; helpful: boolean };
+};
+
+export type ReactionKind = "like" | "bookmark" | "helpful";
+export type ReactionTarget = "tip" | "review";
+
+export type CommunityComment = {
+  id: string;
+  userName: string;
+  content: string;
+  createdAt: string;
+  /** True when the signed-in viewer wrote it — drives the delete control. */
+  mine: boolean;
+};
 import { offlineDb } from "./offlineDb";
 import type { DigitalPassport } from "../types/tourism";
 
@@ -27,16 +48,34 @@ export const communityHubService = {
     }
   },
 
-  async markReviewHelpful(reviewId: string): Promise<void> {
-    // In production, update backend
+  /**
+   * Toggle a reaction. Returns the new state and the fresh count so the
+   * caller can reconcile rather than guess.
+   *
+   * The five methods this replaces (markReviewHelpful, likeTip, bookmarkTip,
+   * joinGroup, addComment) were all empty function bodies with an "in
+   * production" comment — the buttons in the feed called them and nothing
+   * happened.
+   */
+  async react(
+    targetType: ReactionTarget,
+    targetId: string,
+    kind: ReactionKind,
+  ): Promise<{ active: boolean; count: number }> {
+    return api.post<{ active: boolean; count: number }>("/community/reactions", {
+      targetType,
+      targetId,
+      kind,
+    });
   },
 
   // ─── Community Tips ──────────────────────────────────────
   async getTips(category?: string): Promise<CommunityTip[]> {
     const qp = category ? `?category=${encodeURIComponent(category)}` : "";
     try {
-      const data = await api.get<CommunityTip[]>(`/community/tips${qp}`);
-      return data.sort((a, b) => b.likes - a.likes);
+      // No client-side sort: it ordered by the stale `likes` column, which
+      // no longer drives anything. The server returns newest-first.
+      return await api.get<CommunityTip[]>(`/community/tips${qp}`);
     } catch {
       return [];
     }
@@ -50,21 +89,22 @@ export const communityHubService = {
     }
   },
 
-  async likeTip(tipId: string): Promise<void> {
-    // In production, update backend
+  // ─── Comments ───────────────────────────────────────────
+  async getComments(targetType: ReactionTarget, targetId: string): Promise<CommunityComment[]> {
+    const qp = new URLSearchParams({ targetType, targetId });
+    return api.get<CommunityComment[]>(`/community/comments?${qp.toString()}`);
   },
 
-  async bookmarkTip(tipId: string): Promise<void> {
-    // In production, update backend
+  async addComment(
+    targetType: ReactionTarget,
+    targetId: string,
+    content: string,
+  ): Promise<CommunityComment> {
+    return api.post<CommunityComment>("/community/comments", { targetType, targetId, content });
   },
 
-  async addComment(tipId: string, comment: Omit<Comment, "id" | "createdAt">): Promise<Comment> {
-    const newComment: Comment = {
-      ...comment,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    return newComment;
+  async deleteComment(commentId: string): Promise<void> {
+    await api.delete(`/community/comments?id=${encodeURIComponent(commentId)}`);
   },
 
   // ─── Travel Groups ──────────────────────────────────────
@@ -85,8 +125,16 @@ export const communityHubService = {
     }
   },
 
-  async joinGroup(groupId: string): Promise<void> {
-    // In production, update backend
+  async joinGroup(groupId: string): Promise<{ joined: boolean; memberCount: number }> {
+    return api.post<{ joined: boolean; memberCount: number }>("/community/groups/membership", {
+      groupId,
+    });
+  },
+
+  async leaveGroup(groupId: string): Promise<{ joined: boolean; memberCount: number }> {
+    return api.delete<{ joined: boolean; memberCount: number }>(
+      `/community/groups/membership?groupId=${encodeURIComponent(groupId)}`,
+    );
   },
 
   // ─── Travel Memory Book ─────────────────────────────────
