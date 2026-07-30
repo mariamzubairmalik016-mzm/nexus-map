@@ -68,37 +68,22 @@ const tomtomStyle = (): StyleSpecification => ({
   ],
 });
 
-const googleStyle = (): StyleSpecification => ({
-  version: 8,
-  sources: {
-    "google-raster": {
-      type: "raster",
-      tiles: ["https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"],
-      tileSize: 256,
-      maxzoom: 22,
-      attribution: "&copy; Google Maps",
-    },
-  },
-  layers: [
-    { id: "background", type: "background", paint: { "background-color": "#060709" } },
-    {
-      id: "google-raster",
-      type: "raster",
-      source: "google-raster",
-      paint: {
-        // The other two providers were already dimmed to sit inside the dark
-        // UI; Google was left raw and glared against it. Same treatment, a
-        // touch stronger because Google's default basemap is the brightest.
-        "raster-brightness-max": 0.78,
-        "raster-saturation": -0.4,
-        "raster-contrast": 0.14,
-      },
-    },
-  ],
-});
-
+/**
+ * Which basemap to draw.
+ *
+ * This ignored its argument and always returned a Google style built on
+ * `mt1.google.com/vt`, which broke offline maps outright: the service worker
+ * caches `tile.openstreetmap.org`, and so does every downloaded region, so a
+ * download saved tiles the map never asked for. The map requested Google
+ * instead — cross-origin, never cached — and produced nothing the moment the
+ * network went away.
+ *
+ * That endpoint is also unofficial and against Google's terms, and "google"
+ * is not even a value `MapProviderId` allows. Honouring the configured
+ * provider fixes offline and removes the violation in the same change.
+ */
 export const buildMapStyle = (provider: MapProviderId = appEnv.mapProvider): StyleSpecification =>
-  googleStyle();
+  provider === "tomtom" ? tomtomStyle() : osmStyle();
 
 /** Traffic overlay — an optional layer, never part of the base style. */
 export const TRAFFIC_TILE_TEMPLATE = `${appEnv.apiUrl}/navigation/traffic-tile/{z}/{x}/{y}`;
