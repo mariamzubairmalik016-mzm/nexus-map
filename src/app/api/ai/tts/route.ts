@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -344,15 +344,19 @@ export async function POST(req: NextRequest) {
      * lines settle into the cache on their own within a few conversations.
      */
     if (cachedOnly) {
-      void (async () => {
+      // `after` and not a bare promise: on Vercel the function is frozen once
+      // the response is sent, so a detached async call is killed part-way and
+      // the line never actually lands in the cache. This keeps the instance
+      // alive until the render finishes.
+      after(async () => {
         for (const model of models) {
           const audio = await synthesise(model, text, voice, apiKey);
           if (!audio) continue;
           remember(`${model}::${voice}::${text}`, { audio, model });
-          void writeToDisk(fileFor(model, voice, text), audio);
+          await writeToDisk(fileFor(model, voice, text), audio);
           return;
         }
-      })();
+      });
 
       return new NextResponse(null, {
         status: 204,
