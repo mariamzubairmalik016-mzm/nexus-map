@@ -109,6 +109,14 @@ const TTS_TIMEOUT_MS = 2_500;
  */
 const AUDIO_START_TIMEOUT_MS = 1_500;
 
+/**
+ * A single silent 8kHz sample, used only to unlock the audio element inside
+ * the tap that opens the assistant. Browsers only grant playback permission
+ * to a real source, so `play()` on an empty element unlocks nothing.
+ */
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
 const GREETING = voicePhrases.greeting;
 
 /** Kept identical to the entries in voicePhrases.json so they play from cache. */
@@ -392,6 +400,16 @@ const LiveAIVoice = () => {
         const chosen = await resolveFallbackVoice();
         if (chosen) utterance.voice = chosen;
 
+        /**
+         * Two long-standing Chrome bugs make `speak()` silently do nothing:
+         * an utterance queued too soon after `cancel()` is dropped, and one
+         * queued while the engine thinks it is paused never starts. Verified
+         * in-page: `speak()` was accepted and `speaking` went true, but no
+         * `start` event ever arrived. So: let the cancel settle, then speak,
+         * then nudge the engine out of a paused state.
+         */
+        await new Promise((resolve) => window.setTimeout(resolve, 120));
+
         // Safari fires neither onend nor onerror if the utterance is cut off,
         // which would strand the session with the mic shut. Roughly 90ms per
         // character is a generous read; whichever lands first wins.
@@ -405,6 +423,15 @@ const LiveAIVoice = () => {
           done();
         };
         synth.speak(utterance);
+        // Chrome also stops long utterances after ~15s unless poked, so the
+        // nudge repeats until the line is done.
+        const nudge = window.setInterval(() => {
+          if (synth.speaking && synth.paused) synth.resume();
+        }, 200);
+        const stopNudge = () => window.clearInterval(nudge);
+        utterance.addEventListener("end", stopNudge);
+        utterance.addEventListener("error", stopNudge);
+        window.setTimeout(stopNudge, 3_000 + text.length * 90 + 1_000);
       };
 
       try {
@@ -478,7 +505,7 @@ const LiveAIVoice = () => {
           ),
         ]);
 
-        if (!startedPlaying || audio.readyState === 0) {
+        if (!startedPlaying) {
           audio.onended = null;
           audio.onerror = null;
           audio.pause();
@@ -790,17 +817,35 @@ const LiveAIVoice = () => {
       return;
     }
 
-    // iOS Safari only allows audio that starts inside a user gesture, so both
-    // engines are unlocked here, on the tap that opens the assistant.
-    if (synthRef.current) {
-      const silent = new SpeechSynthesisUtterance(" ");
-      silent.volume = 0;
-      synthRef.current.speak(silent);
-      // Warming the voice list during the gesture means the first fallback
-      // line already has a speaker chosen instead of waiting for one.
-      void resolveFallbackVoice();
+    /**
+     * Unlock both audio engines on the tap, which is the only moment a browser
+     * will grant it.
+     *
+     * The element is unlocked by actually playing something. It used to be
+     * given a bare `play()` with no `src`, which rejects immediately and
+     * unlocks nothing — so the first real reply was the first time the element
+     * had ever been asked to play, outside any gesture. A one-sample silent
+     * WAV is a real source, so this genuinely counts.
+     */
+    const audio = audioRef.current;
+    if (audio) {
+      audio.src = SILENT_WAV;
+      audio.muted = true;
+      void audio
+        .play()
+        .then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+        })
+        .catch(() => {
+          audio.muted = false;
+        });
     }
-    void audioRef.current?.play().catch(() => {});
+
+    // Warming the voice list during the gesture means the first fallback line
+    // already has a speaker chosen instead of waiting for one.
+    void resolveFallbackVoice();
 
     sessionRef.current = crypto.randomUUID();
     restartFailuresRef.current = 0;
