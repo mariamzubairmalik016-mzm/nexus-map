@@ -12,7 +12,9 @@ export type OfflineArea = {
   downloadedAt?: string;
 };
 
-const CACHE_NAME = "nexus-map-offline-tiles-v1";
+import { ACTIVE_TILE_TEMPLATE } from "../config/mapStyle";
+
+const CACHE_NAME = "nexus-map-offline-tiles-v2";
 const STORAGE_KEY = "nexus-map-offline-areas";
 
 const tileNumber = (latitude: number, longitude: number, zoom: number) => {
@@ -24,8 +26,14 @@ const tileNumber = (latitude: number, longitude: number, zoom: number) => {
   };
 };
 
+/**
+ * Must match what the map draws, or a completed download holds tiles nothing
+ * ever requests — which is exactly how offline maps came to be broken.
+ */
 const tileUrl = (zoom: number, x: number, y: number) =>
-  `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+  ACTIVE_TILE_TEMPLATE.replace("{z}", String(zoom))
+    .replace("{x}", String(x))
+    .replace("{y}", String(y));
 
 const loadAreas = (): OfflineArea[] => {
   try {

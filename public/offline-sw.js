@@ -15,7 +15,7 @@
 // the cached HTML asked for scripts that no longer existed, and every page
 // rendered blank. Bumping the name drops those poisoned entries on activate.
 const APP_CACHE = "nexus-map-app-v8";
-const TILE_CACHE = "nexus-map-offline-tiles-v1";
+const TILE_CACHE = "nexus-map-offline-tiles-v2";
 const API_CACHE = "nexus-map-api-v1";
 
 const APP_SHELL = ["/", "/manifest.webmanifest", "/pwa-icon.svg", "/favicon.svg"];
@@ -79,7 +79,14 @@ self.addEventListener("fetch", (event) => {
 
   if (NEVER_CACHE.some((pattern) => pattern.test(url.pathname))) return;
 
-  const isTile = url.hostname === "tile.openstreetmap.org" && url.pathname.endsWith(".png");
+  // Must match the hosts the map actually draws from. This read
+  // `tile.openstreetmap.org` while the map requested Google, so a downloaded
+  // region cached tiles nothing ever asked for and offline maps showed
+  // nothing. Google's tile hosts send `access-control-allow-origin: *`, so the
+  // responses are real and cacheable rather than opaque.
+  const isTile =
+    url.hostname === "tile.openstreetmap.org" ||
+    /^mt[0-3]\.google\.com$/.test(url.hostname);
   const isApi = CACHEABLE_API.some((pattern) => pattern.test(url.pathname));
 
   // Cross-origin requests that are neither tiles nor cacheable API calls go

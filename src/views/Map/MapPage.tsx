@@ -163,14 +163,6 @@ const MapPage = () => {
   const [communityNotes, setCommunityNotes] =
     useState<CommunityNote[]>([]);
   const [busy, setBusy] = useState(false);
-  /**
-   * Whether the planner sheet is expanded. Phone only — the desktop layout
-   * ignores it, since there the planner is a permanent column.
-   *
-   * Starts open so the screen still explains itself on arrival; collapsing it
-   * hands the whole display to the map.
-   */
-  const [mapSheetOpen, setMapSheetOpen] = useState(true);
   const [travelMode, setTravelMode] = useState<TravelMode>(
     () => travelModeFromParam(searchParams.get("mode")) ?? "car",
   );
@@ -836,13 +828,9 @@ const MapPage = () => {
   };
 
   return (
-    /* On a phone this is a full-bleed map with the planner as a sheet over
-       it, so the page takes no padding of its own below `xl`. */
-    <section className="min-h-[calc(100dvh-80px)] px-0 py-0 xl:px-8 xl:py-6">
+    <section className="min-h-[calc(100dvh-80px)] px-3 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1800px]">
-        {/* The title is desktop furniture. On a phone it would push the map —
-            the entire point of the screen — below the fold. */}
-        <div className="mb-6 hidden xl:block">
+        <div className="mb-6">
           <p className="text-sm uppercase tracking-[0.28em] text-cyan-400">
             Global live navigation
           </p>
@@ -855,47 +843,17 @@ const MapPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          /* Phone: one stacking context, map underneath, planner sheet on
-             top. Desktop keeps the two-column split. */
-          className="relative grid h-[calc(100dvh-80px-4rem)] overflow-hidden xl:nexus-glass-elevated xl:h-auto xl:grid-cols-[420px_minmax(0,1fr)]"
+          className="nexus-glass-elevated grid overflow-hidden xl:grid-cols-[420px_minmax(0,1fr)]"
         >
           <motion.aside
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            /**
-             * The planner as a bottom sheet on a phone.
-             *
-             * It used to be an ordinary block in the flow, up to 920px tall,
-             * sitting *above* the map. On a 390x844 screen that meant the map
-             * — the reason the screen exists — was entirely below the fold and
-             * had to be scrolled to. Every maps app puts the map first and the
-             * controls in a sheet over it; this does the same.
-             *
-             * `mapSheetOpen` snaps between a peek and most of the screen, and
-             * the sheet scrolls internally so the map is never pushed away.
-             */
-            className={`nexus-glass absolute inset-x-0 bottom-0 z-20 overflow-y-auto rounded-t-[26px] border-t border-white/10 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] transition-[max-height] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] xl:static xl:z-auto xl:max-h-[920px] xl:rounded-none xl:border-b-0 xl:border-r xl:border-t-0 xl:pb-5 ${
-              mapSheetOpen ? "max-h-[78%]" : "max-h-[7.5rem]"
-            }`}
+            className="nexus-glass max-h-[920px] overflow-y-auto border-b border-white/10 p-5 xl:border-b-0 xl:border-r"
           >
-            {/* Grab handle. Tapping anywhere on this row toggles the sheet,
-                which is a far bigger target than a chevron and matches how a
-                sheet behaves natively. Hidden on desktop, where there is no
-                sheet to collapse. */}
-            <button
-              type="button"
-              onClick={() => setMapSheetOpen((open) => !open)}
-              aria-expanded={mapSheetOpen}
-              aria-label={mapSheetOpen ? "Collapse the route planner" : "Expand the route planner"}
-              className="-mt-2 mb-1 flex w-full flex-col items-center gap-2 pb-1 xl:hidden"
-            >
-              <span className="h-1.5 w-10 rounded-full bg-white/25" />
-            </button>
-
             <div className="flex items-center gap-3">
-              <Route className="shrink-0 text-purple-400" />
-              <h2 className="text-xl font-bold sm:text-2xl">
+              <Route className="text-purple-400" />
+              <h2 className="text-2xl font-bold">
                 Smart Route Planner
               </h2>
             </div>
@@ -1382,8 +1340,7 @@ const MapPage = () => {
             </div>
           </motion.aside>
 
-          {/* Phone: the map is the page. Desktop: the right-hand column. */}
-          <div className="relative h-full min-h-0 xl:min-h-[760px]">
+          <div className="relative min-h-[760px]">
             {/* Scoped boundary: the map talks to a native GL library and to
                 third-party data, so it is the most likely thing to throw. If it
                 does, the planner, alerts and the rest of the page must keep

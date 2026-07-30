@@ -1,5 +1,5 @@
 import { offlineDb } from "./offlineDb";
-import { OSM_TILE_TEMPLATE } from "../config/mapStyle";
+import { ACTIVE_TILE_TEMPLATE } from "../config/mapStyle";
 import {
   AVERAGE_TILE_BYTES,
   LARGE_REGION_TILE_WARNING,
@@ -18,7 +18,7 @@ import {
  * bulk downloading.
  */
 
-export const TILE_CACHE = "nexus-map-offline-tiles-v1";
+export const TILE_CACHE = "nexus-map-offline-tiles-v2";
 const PROVIDER = "openstreetmap";
 /** Concurrent tile fetches. Deliberately small — politeness over speed. */
 const CONCURRENCY = 4;
@@ -51,7 +51,7 @@ export const tileUrlsFor = (bounds: RegionBounds, minZoom: number, maxZoom: numb
     for (let x = xStart; x <= xEnd; x += 1) {
       for (let y = yStart; y <= yEnd; y += 1) {
         urls.push(
-          OSM_TILE_TEMPLATE.replace("{z}", String(zoom)).replace("{x}", String(x)).replace("{y}", String(y)),
+          ACTIVE_TILE_TEMPLATE.replace("{z}", String(zoom)).replace("{x}", String(x)).replace("{y}", String(y)),
         );
       }
     }

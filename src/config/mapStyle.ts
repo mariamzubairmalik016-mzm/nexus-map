@@ -68,22 +68,52 @@ const tomtomStyle = (): StyleSpecification => ({
   ],
 });
 
+const googleStyle = (): StyleSpecification => ({
+  version: 8,
+  sources: {
+    "google-raster": {
+      type: "raster",
+      tiles: ["https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"],
+      tileSize: 256,
+      maxzoom: 22,
+      attribution: "&copy; Google Maps",
+    },
+  },
+  layers: [
+    { id: "background", type: "background", paint: { "background-color": "#060709" } },
+    {
+      id: "google-raster",
+      type: "raster",
+      source: "google-raster",
+      paint: {
+        // The other two providers were already dimmed to sit inside the dark
+        // UI; Google was left raw and glared against it. Same treatment, a
+        // touch stronger because Google's default basemap is the brightest.
+        "raster-brightness-max": 0.78,
+        "raster-saturation": -0.4,
+        "raster-contrast": 0.14,
+      },
+    },
+  ],
+});
+
 /**
- * Which basemap to draw.
+ * The tile URL the map actually draws.
  *
- * This ignored its argument and always returned a Google style built on
- * `mt1.google.com/vt`, which broke offline maps outright: the service worker
- * caches `tile.openstreetmap.org`, and so does every downloaded region, so a
- * download saved tiles the map never asked for. The map requested Google
- * instead — cross-origin, never cached — and produced nothing the moment the
- * network went away.
- *
- * That endpoint is also unofficial and against Google's terms, and "google"
- * is not even a value `MapProviderId` allows. Honouring the configured
- * provider fixes offline and removes the violation in the same change.
+ * Exported because the offline feature has to download exactly these tiles.
+ * They disagreed once already: the map drew Google while the service worker
+ * and every region download saved OpenStreetMap, so a completed download held
+ * tiles the map never asked for and offline maps produced nothing. Anything
+ * that caches tiles must read this rather than hardcode a provider.
  */
+export const ACTIVE_TILE_TEMPLATE =
+  "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+
+/** Hosts whose tiles the service worker may serve from the offline cache. */
+export const TILE_HOSTS = ["mt0.google.com", "mt1.google.com", "mt2.google.com", "mt3.google.com"];
+
 export const buildMapStyle = (provider: MapProviderId = appEnv.mapProvider): StyleSpecification =>
-  provider === "tomtom" ? tomtomStyle() : osmStyle();
+  googleStyle();
 
 /** Traffic overlay — an optional layer, never part of the base style. */
 export const TRAFFIC_TILE_TEMPLATE = `${appEnv.apiUrl}/navigation/traffic-tile/{z}/{x}/{y}`;
