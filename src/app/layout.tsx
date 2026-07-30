@@ -47,6 +47,7 @@ import Navbar from "../components/layouts/Navbar";
 import Footer from "../components/layouts/Footer";
 import LiveAIVoice from "../components/ai/LiveAIVoice";
 import CinematicBackground from "../components/ui/CinematicBackground";
+import MobileTabBar from "../components/layouts/MobileTabBar";
 
 export default function RootLayout({
   children,
@@ -70,13 +71,20 @@ export default function RootLayout({
           <div className="relative min-h-screen overflow-x-hidden text-white">
             <CinematicBackground />
             <Navbar />
-            <main id="main" tabIndex={-1} className="relative z-10 min-h-[calc(100dvh-80px)] pt-20 focus:outline-none">
+            {/* pb-16 on small screens keeps the last of the page clear of the
+                tab bar, which is fixed and would otherwise sit on top of it. */}
+            <main
+              id="main"
+              tabIndex={-1}
+              className="relative z-10 min-h-[calc(100dvh-80px)] pb-16 pt-20 focus:outline-none lg:pb-0"
+            >
               {children}
             </main>
             <div className="relative z-10">
               <Footer />
             </div>
             <LiveAIVoice />
+            <MobileTabBar />
           </div>
         </Providers>
       </body>

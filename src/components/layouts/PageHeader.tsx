@@ -35,7 +35,7 @@ const PageHeader = ({
 }) => {
   const titleClass =
     size === "hero"
-      ? "text-hero-display text-4xl sm:text-5xl lg:text-6xl"
+      ? "text-hero-display text-[1.75rem] sm:text-4xl md:text-5xl lg:text-6xl"
       : size === "compact"
         ? "font-display text-2xl font-bold sm:text-3xl"
         : "text-hero-display text-3xl sm:text-4xl lg:text-5xl";

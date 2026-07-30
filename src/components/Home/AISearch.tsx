@@ -16,7 +16,7 @@ const AISearch = () => {
       <div className="relative mx-auto max-w-6xl">
         <div className="nexus-card-cinematic p-6 text-center sm:p-10">
           <p className="nexus-eyebrow">Intelligent discovery</p>
-          <h2 className="text-hero-display mt-4 text-4xl sm:text-5xl">
+          <h2 className="text-hero-display mt-4 text-[1.75rem] sm:text-4xl md:text-5xl">
             AI Smart Search
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-slate-400">

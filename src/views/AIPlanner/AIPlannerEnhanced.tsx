@@ -160,7 +160,7 @@ const AIPlannerEnhanced = () => {
           className="text-center"
         >
           <p className="nexus-eyebrow">AI Travel Assistant</p>
-          <h1 className="text-hero-display mt-4 text-5xl sm:text-6xl">
+          <h1 className="text-hero-display mt-4 text-[2rem] sm:text-5xl md:text-6xl">
             Build Your Perfect Trip with{" "}
             <span className="nexus-gradient-text">Nexus AI</span>
           </h1>

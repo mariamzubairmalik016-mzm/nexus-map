@@ -940,7 +940,7 @@ const LiveAIVoice = () => {
         onClick={toggleLiveAI}
         aria-label={open ? "Stop Live AI assistant" : "Open Live AI assistant"}
         aria-pressed={open}
-        className={`fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-[92] flex h-16 w-16 items-center justify-center rounded-full text-white transition-all duration-300 active:scale-95 sm:hover:scale-105 ${
+        className={`fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-5 z-[96] lg:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] flex h-16 w-16 items-center justify-center rounded-full text-white transition-all duration-300 active:scale-95 sm:hover:scale-105 ${
           open
             ? "bg-gradient-to-b from-[#ff6a60] to-[#ff453a] shadow-[0_10px_30px_rgba(255,69,58,0.45),inset_0_1px_0_rgba(255,255,255,0.3)]"
             : "bg-gradient-to-b from-[#c86bf5] to-[#af52de] shadow-[0_10px_30px_rgba(175,82,222,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] sm:hover:shadow-[0_14px_40px_rgba(175,82,222,0.55),inset_0_1px_0_rgba(255,255,255,0.36)]"

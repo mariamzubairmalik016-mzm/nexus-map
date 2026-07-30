@@ -148,7 +148,7 @@ const SmartTourism = () => {
           className="text-center"
         >
           <p className="nexus-eyebrow">Smart Tourism Discovery</p>
-          <h1 className="text-hero-display mt-4 text-5xl sm:text-6xl">
+          <h1 className="text-hero-display mt-4 text-[2rem] sm:text-5xl md:text-6xl">
             Discover Your{" "}
             <span className="nexus-gradient-text">Next Adventure</span>
           </h1>

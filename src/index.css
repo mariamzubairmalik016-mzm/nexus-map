@@ -1144,7 +1144,8 @@ h3,
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(6.5rem + env(safe-area-inset-bottom));
+  /* Clears the mobile tab bar and the voice orb that sits above it. */
+  bottom: calc(10.5rem + env(safe-area-inset-bottom));
   z-index: 91;
   max-width: min(30rem, calc(100vw - 3rem));
   padding: 0.7rem 1.15rem;
@@ -1160,6 +1161,12 @@ h3,
   font-size: 0.875rem;
   text-align: center;
   animation: nexus-fade-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (min-width: 1024px) {
+  .nexus-siri-caption {
+    bottom: calc(6.5rem + env(safe-area-inset-bottom));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -17,7 +17,7 @@ const Features = () => (
     <div className="relative mx-auto max-w-7xl">
       <div className="text-center">
         <p className="nexus-eyebrow">Everything in one platform</p>
-        <h2 className="text-hero-display mt-4 text-5xl sm:text-6xl">
+        <h2 className="text-hero-display mt-4 text-[2rem] sm:text-5xl md:text-6xl">
           Powerful <span className="nexus-gradient-text">Features</span>
         </h2>
         <p className="mx-auto mt-4 max-w-2xl leading-7 text-slate-400">

@@ -404,7 +404,7 @@ const SafetyCenter = () => {
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="text-center">
           <p className="nexus-eyebrow">Family Safety Center</p>
-          <h1 className="text-hero-display mt-4 text-5xl sm:text-6xl">
+          <h1 className="text-hero-display mt-4 text-[2rem] sm:text-5xl md:text-6xl">
             <span className="nexus-gradient-text">Stay Safe</span>, Stay Connected
           </h1>
           <p className="mx-auto mt-4 max-w-3xl text-slate-400">
