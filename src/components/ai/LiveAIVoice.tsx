@@ -135,6 +135,15 @@ const LiveAIVoice = () => {
   const [speaking, setSpeaking] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
+  /**
+   * The line currently being spoken, shown in the caption.
+   *
+   * Most machines have no voice installed for some languages — this one has
+   * 87 voices and not one Urdu — so a reply in such a language cannot be
+   * spoken at all. Showing the words means the answer still lands instead of
+   * the assistant appearing to talk to itself in silence.
+   */
+  const [spokenLine, setSpokenLine] = useState("");
   const [history, setHistory] = useState<ChatTurn[]>([]);
   /** Shown when the mic will not open, so the panel explains itself rather than sitting silent. */
   const [micBlocked, setMicBlocked] = useState(false);
@@ -161,7 +170,7 @@ const LiveAIVoice = () => {
    * felt like. That is the voice changing between sentences. Resolved once per
    * session and reused.
    */
-  const fallbackVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const fallbackVoiceRef = useRef<Map<string, SpeechSynthesisVoice | null>>(new Map());
   /**
    * Once the assistant has had to fall back to the browser voice, it stays
    * there for the rest of the session. Switching back to Gemini mid-chat is
@@ -290,42 +299,59 @@ const LiveAIVoice = () => {
    * when it is done; calling it cold returns `[]`. Picking a voice is done
    * once and pinned, so the assistant cannot change speaker mid-conversation.
    */
-  const resolveFallbackVoice = useCallback(async (): Promise<SpeechSynthesisVoice | null> => {
-    if (fallbackVoiceRef.current) return fallbackVoiceRef.current;
-    const synth = synthRef.current;
-    if (!synth) return null;
+  const resolveFallbackVoice = useCallback(
+    async (language: string): Promise<SpeechSynthesisVoice | null> => {
+      const base = language.split("-")[0].toLowerCase();
+      const cached = fallbackVoiceRef.current;
+      // Cached per language, not once per session. Pinning one voice for the
+      // whole conversation is what left an English speaker (Daniel, en-GB)
+      // trying to read Urdu after the user switched language — which produces
+      // no audible speech at all. Pinning still prevents the voice wobbling
+      // *within* a language, which is what it was for.
+      if (cached.has(base)) return cached.get(base) ?? null;
 
-    let voices = synth.getVoices();
-    if (voices.length === 0) {
-      voices = await new Promise<SpeechSynthesisVoice[]>((resolve) => {
-        const timer = window.setTimeout(() => resolve(synth.getVoices()), 1200);
-        synth.addEventListener(
-          "voiceschanged",
-          () => {
-            window.clearTimeout(timer);
-            resolve(synth.getVoices());
-          },
-          { once: true },
-        );
-      });
-    }
-    if (voices.length === 0) return null;
+      const synth = synthRef.current;
+      if (!synth) return null;
 
-    // Language first, gender second: an English voice reading Urdu is
-    // unintelligible, whereas a female voice reading Urdu is merely not what
-    // was asked for.
-    const base = langRef.current.split("-")[0];
-    const sameLanguage = voices.filter((voice) => voice.lang.split("-")[0] === base);
-    const pool = sameLanguage.length ? sameLanguage : voices;
+      let voices = synth.getVoices();
+      if (voices.length === 0) {
+        // Chrome populates the list asynchronously and fires `voiceschanged`
+        // when it is ready; calling it cold returns [].
+        voices = await new Promise<SpeechSynthesisVoice[]>((resolve) => {
+          const timer = window.setTimeout(() => resolve(synth.getVoices()), 1200);
+          synth.addEventListener(
+            "voiceschanged",
+            () => {
+              window.clearTimeout(timer);
+              resolve(synth.getVoices());
+            },
+            { once: true },
+          );
+        });
+      }
 
-    fallbackVoiceRef.current =
-      pool.find((voice) => /daniel|alex|rishi|google uk english male/i.test(voice.name)) ??
-      pool.find((voice) => /male/i.test(voice.name)) ??
-      pool[0] ??
-      null;
+      const sameLanguage = voices.filter((voice) => voice.lang.split("-")[0].toLowerCase() === base);
 
-    return fallbackVoiceRef.current;
-  }, []);
+      /**
+       * No voice for this language means no voice, not "use any voice".
+       *
+       * Most machines ship no Urdu voice at all — verified on this one: 87
+       * voices installed, zero `ur-*`. Handing the line to an English speaker
+       * anyway is what produced silence. Returning null leaves `utterance.lang`
+       * to the engine, which at worst does the same thing but never picks a
+       * confidently wrong speaker.
+       */
+      const chosen =
+        sameLanguage.find((voice) => /daniel|alex|rishi|google uk english male/i.test(voice.name)) ??
+        sameLanguage.find((voice) => /male/i.test(voice.name)) ??
+        sameLanguage[0] ??
+        null;
+
+      cached.set(base, chosen);
+      return chosen;
+    },
+    [],
+  );
 
   const stopListening = useCallback(() => {
     const recognition = recognitionRef.current;
@@ -354,6 +380,7 @@ const LiveAIVoice = () => {
       // Flag first, then stop: `recognition.onend` restarts the mic unless it
       // can see that the assistant is about to talk.
       setSpeakingState(true);
+      setSpokenLine(text);
       stopListening();
 
       const audio = audioRef.current;
@@ -397,7 +424,7 @@ const LiveAIVoice = () => {
         utterance.rate = 0.98;
         utterance.pitch = 0.85; // Drop it toward a male range.
 
-        const chosen = await resolveFallbackVoice();
+        const chosen = await resolveFallbackVoice(langRef.current);
         if (chosen) utterance.voice = chosen;
 
         /**
@@ -845,12 +872,12 @@ const LiveAIVoice = () => {
 
     // Warming the voice list during the gesture means the first fallback line
     // already has a speaker chosen instead of waiting for one.
-    void resolveFallbackVoice();
+    void resolveFallbackVoice(langRef.current);
 
     sessionRef.current = crypto.randomUUID();
     restartFailuresRef.current = 0;
     usingBrowserVoiceRef.current = false;
-    fallbackVoiceRef.current = null;
+    fallbackVoiceRef.current.clear();
     setMicBlocked(false);
     setOpenState(true);
     setHistory([]);
@@ -882,7 +909,10 @@ const LiveAIVoice = () => {
     : processing
       ? "Thinking…"
       : speaking
-        ? "Speaking…"
+        ? // The words, not just "Speaking…". A reply in a language this device
+          // has no voice for cannot be spoken at all, and showing it means the
+          // answer still reaches the user instead of being lost to silence.
+          spokenLine || "Speaking…"
         : transcript || "Listening…";
 
   return (
