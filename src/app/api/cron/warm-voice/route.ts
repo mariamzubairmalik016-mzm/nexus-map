@@ -16,6 +16,12 @@ export const maxDuration = 300;
  * unrendered for exactly that reason, because the day's quota was spent before
  * anyone got to them.
  *
+ * The schedule lives in `vercel.json` as `30 8 * * *`. Gemini's daily quota
+ * rolls over at midnight Pacific — 07:00 UTC under PDT, 08:00 under PST — so
+ * 08:30 clears both, with margin for the scheduler running late. That note is
+ * here rather than beside the entry because Vercel rejects any property it
+ * does not recognise, including a `//` comment key.
+ *
  * Vercel calls this on a schedule shortly after midnight Pacific. It walks the
  * phrase list, asks the speech route for each line *without* `cachedOnly`, and
  * stops at the first quota refusal — the route itself stores whatever it
