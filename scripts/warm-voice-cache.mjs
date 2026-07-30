@@ -32,9 +32,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = join(ROOT, "public", "voice");
 
+// Same order as TTS_MODELS in src/app/api/ai/tts/route.ts. The cache filename
+// includes the model, so warming a different one than the app asks for first
+// renders audio the app will never look for.
 const MODELS = [
-  "gemini-3.1-flash-tts-preview",
   "gemini-2.5-flash-preview-tts",
+  "gemini-3.1-flash-tts-preview",
   "gemini-2.5-pro-preview-tts",
 ];
 
@@ -51,17 +54,28 @@ const argOf = (name) => {
   return index > -1 ? process.argv[index + 1] : undefined;
 };
 
-/** Reads GEMINI_API_KEY without pulling in a dotenv dependency. */
+/**
+ * Reads the speech key without pulling in a dotenv dependency.
+ *
+ * Prefers GEMINI_TTS_API_KEY, matching the route: when speech has its own key
+ * the warm-up must spend that project's allowance, not the chat model's.
+ */
 const readKey = async () => {
-  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+  const NAMES = ["GEMINI_TTS_API_KEY", "GEMINI_API_KEY"];
+
+  for (const name of NAMES) {
+    if (process.env[name]) return process.env[name];
+  }
 
   for (const file of [".env.local", ".env"]) {
     try {
       const contents = await readFile(join(ROOT, file), "utf8");
-      const match = contents.match(/^GEMINI_API_KEY=(.*)$/m);
-      if (match) {
-        const value = match[1].trim().replace(/^["']|["']$/g, "");
-        if (value) return value;
+      for (const name of NAMES) {
+        const match = contents.match(new RegExp(`^${name}=(.*)$`, "m"));
+        if (match) {
+          const value = match[1].trim().replace(/^["']|["']$/g, "");
+          if (value) return value;
+        }
       }
     } catch {
       // Try the next file.

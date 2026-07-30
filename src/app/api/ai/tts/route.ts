@@ -36,8 +36,13 @@ export const dynamic = "force-dynamic";
  * of the session rather than being retried on every line.
  */
 const TTS_MODELS = [
-  "gemini-3.1-flash-tts-preview",
+  // Measured against the live API rather than assumed: 2.5-flash returned
+  // audio in 3.2s, 3.1-flash took 9.0s for the same sentence, and 2.5-pro was
+  // already 429 RESOURCE_EXHAUSTED. 2.5-flash also carries by far the largest
+  // free daily allowance (~100 requests/day against ~10 for the other two),
+  // so it is both the fastest option and the one that lasts a whole day.
   "gemini-2.5-flash-preview-tts",
+  "gemini-3.1-flash-tts-preview",
   "gemini-2.5-pro-preview-tts",
 ];
 
@@ -261,7 +266,15 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Text is required", { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    /**
+     * Speech gets its own key when one is provided.
+     *
+     * The free tier meters per project, so sharing a key with the chat model
+     * means a busy conversation can spend the day's speech allowance on text.
+     * A separate key keeps the two budgets apart; without one, the shared key
+     * still works exactly as before.
+     */
+    const apiKey = process.env.GEMINI_TTS_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return new NextResponse("Gemini API key not configured", { status: 500 });
     }
