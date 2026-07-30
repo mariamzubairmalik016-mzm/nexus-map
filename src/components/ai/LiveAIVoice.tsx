@@ -100,6 +100,15 @@ const LIVE_TIMEOUT_MS = 25_000;
  */
 const TTS_TIMEOUT_MS = 2_500;
 
+/**
+ * How long playback has to actually begin before the audio is abandoned.
+ *
+ * `audio.play()` can hang forever — verified in the browser against a valid
+ * WAV the server had served correctly. Past this the browser voice takes the
+ * line instead, so a stalled decoder cannot strand the session.
+ */
+const AUDIO_START_TIMEOUT_MS = 1_500;
+
 const GREETING = voicePhrases.greeting;
 
 /** Kept identical to the entries in voicePhrases.json so they play from cache. */
@@ -151,6 +160,8 @@ const LiveAIVoice = () => {
    * exactly the audible change of speaker the user is complaining about.
    */
   const usingBrowserVoiceRef = useRef(false);
+  /** Set when the server said "not cached" — an ordinary miss, not a failure. */
+  const notCachedRef = useRef(false);
 
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -338,18 +349,62 @@ const LiveAIVoice = () => {
       stopListening();
 
       const audio = audioRef.current;
-      if (audio) audio.pause();
+      if (audio) {
+        audio.pause();
+        // Drop any handlers from the previous line; a stale `onended` firing
+        // late would hand the mic back in the middle of this one.
+        audio.onended = null;
+        audio.onerror = null;
+      }
       synthRef.current?.cancel();
 
-      // Distinguishes "not cached yet" from a real TTS failure below.
-      let notCached = false;
-
+      /**
+       * Exactly one path may finish the turn.
+       *
+       * Several things can end a spoken line — playback finishing, a watchdog
+       * firing, an error — and more than one of them routinely happens for the
+       * same line. Without this the mic would be handed back twice.
+       */
+      let settled = false;
       const done = () => {
+        if (settled) return;
+        settled = true;
         setSpeakingState(false);
         // Gap so the tail of the reply does not land in the next capture, and
         // so a phone has time to release the audio session before the mic
         // claims it.
         scheduleRestart(mobileRef.current ? RESTART_DELAY_MOBILE_MS : RESTART_DELAY_MS);
+      };
+
+      /** The browser's own voice. Always available, always instant. */
+      const speakWithBrowser = async () => {
+        const synth = synthRef.current;
+        if (!synth) {
+          done();
+          return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = langRef.current;
+        utterance.rate = 0.98;
+        utterance.pitch = 0.85; // Drop it toward a male range.
+
+        const chosen = await resolveFallbackVoice();
+        if (chosen) utterance.voice = chosen;
+
+        // Safari fires neither onend nor onerror if the utterance is cut off,
+        // which would strand the session with the mic shut. Roughly 90ms per
+        // character is a generous read; whichever lands first wins.
+        const guard = window.setTimeout(done, 3_000 + text.length * 90);
+        utterance.onend = () => {
+          window.clearTimeout(guard);
+          done();
+        };
+        utterance.onerror = () => {
+          window.clearTimeout(guard);
+          done();
+        };
+        synth.speak(utterance);
       };
 
       try {
@@ -376,70 +431,81 @@ const LiveAIVoice = () => {
         // to the browser voice — the next line may well be a cached one, and
         // pinning would waste the warmed audio for the rest of the session.
         if (response.status === 204) {
-          notCached = true;
+          notCachedRef.current = true;
           throw new Error("not cached");
         }
         if (!response.ok) throw new Error(`TTS ${response.status}`);
 
         const blob = await response.blob();
         if (!blob.size) throw new Error("empty audio");
+        if (!audio) throw new Error("no audio element");
 
         const url = URL.createObjectURL(blob);
-        if (!audio) throw new Error("no audio element");
+        const release = () => URL.revokeObjectURL(url);
 
         audio.src = url;
         audio.onended = () => {
-          URL.revokeObjectURL(url);
+          release();
           done();
         };
         audio.onerror = () => {
-          URL.revokeObjectURL(url);
-          done();
+          release();
+          void speakWithBrowser();
         };
 
-        await audio.play();
-      } catch (error) {
-        // Only a genuine failure disables Gemini for the session. A cache miss
-        // is the normal path now and leaves it enabled.
-        if (!notCached) {
-          console.warn("[voice] Gemini TTS unavailable, using browser voice:", error);
-          usingBrowserVoiceRef.current = true;
-        }
+        /**
+         * `audio.play()` can hang indefinitely.
+         *
+         * Verified in the browser against a valid 24kHz mono WAV that the
+         * server had served correctly: the element sat at readyState 0 with
+         * `waiting` and `stalled` fired, no error, and the promise neither
+         * resolved nor rejected. Nothing downstream could recover, so the
+         * assistant stayed on "Speaking…" with the mic shut — exactly the
+         * symptom reported. A device with no audio output, a blocked autoplay
+         * policy or a decoder that never starts all land here.
+         *
+         * So playback is given a deadline to actually begin. If it has not,
+         * the audio is abandoned and the browser voice speaks the line, which
+         * needs no decoding and cannot stall.
+         */
+        const startedPlaying = await Promise.race([
+          audio
+            .play()
+            .then(() => true)
+            .catch(() => false),
+          new Promise<boolean>((resolve) =>
+            window.setTimeout(() => resolve(false), AUDIO_START_TIMEOUT_MS),
+          ),
+        ]);
 
-        const synth = synthRef.current;
-        if (!synth) {
-          done();
+        if (!startedPlaying || audio.readyState === 0) {
+          audio.onended = null;
+          audio.onerror = null;
+          audio.pause();
+          release();
+          console.warn("[voice] audio would not start, using browser voice");
+          await speakWithBrowser();
           return;
         }
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = langRef.current;
-        utterance.rate = 0.98;
-        utterance.pitch = 0.85; // Drop it toward a male range.
-
-        const chosen = await resolveFallbackVoice();
-        if (chosen) utterance.voice = chosen;
-
-        // Safari fires neither onend nor onerror if the utterance is cut off,
-        // which would strand the session with the mic shut. Roughly 90ms per
-        // character is a generous read; whichever lands first wins.
-        let finished = false;
-        const finish = () => {
-          if (finished) return;
-          finished = true;
+        // Belt and braces: even when playback starts, `onended` is not
+        // guaranteed to arrive. Cap the turn at the clip's own length plus a
+        // margin so the mic always comes back.
+        const cap = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 30;
+        window.setTimeout(() => {
+          if (settled) return;
+          release();
           done();
-        };
-        const guard = window.setTimeout(finish, 3_000 + text.length * 90);
-
-        utterance.onend = () => {
-          window.clearTimeout(guard);
-          finish();
-        };
-        utterance.onerror = () => {
-          window.clearTimeout(guard);
-          finish();
-        };
-        synth.speak(utterance);
+        }, cap * 1000 + 2_000);
+      } catch (error) {
+        // Only a genuine failure disables Gemini for the session. A cache miss
+        // is the normal path now and leaves it enabled.
+        if (!notCachedRef.current) {
+          console.warn("[voice] Gemini TTS unavailable, using browser voice:", error);
+          usingBrowserVoiceRef.current = true;
+        }
+        notCachedRef.current = false;
+        await speakWithBrowser();
       }
     },
     [resolveFallbackVoice, scheduleRestart, stopListening],
