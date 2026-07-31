@@ -30,11 +30,21 @@ import { voiceCache } from "../db/schema";
  * of the session rather than being retried on every line.
  */
 const TTS_MODELS = [
-  // Measured against the live API rather than assumed: 2.5-flash returned
-  // audio in 3.2s, 3.1-flash took 9.0s for the same sentence, and 2.5-pro was
-  // already 429 RESOURCE_EXHAUSTED. 2.5-flash also carries by far the largest
-  // free daily allowance (~100 requests/day against ~10 for the other two),
-  // so it is both the fastest option and the one that lasts a whole day.
+  // 2.5-flash leads on speed: it returned audio in 3.2s against 9.0s from
+  // 3.1-flash for the same sentence.
+  //
+  // It does NOT, as this comment previously claimed, carry "~100 requests/day
+  // against ~10 for the other two" — that was the reason it was chosen, and it
+  // is wrong. Asked for one line past its allowance, the API is explicit:
+  //
+  //   quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier
+  //   quotaDimensions: { model: "gemini-2.5-flash-tts" }
+  //   quotaValue: "10"
+  //
+  // Ten, the same as the rest. So the chain below is worth three times as much
+  // as any single model, and pinning GEMINI_TTS_MODEL — which reduces the list
+  // to one entry in the route — costs two thirds of the day's speech. Pin it
+  // for a steady voice, not because one model lasts longer; it does not.
   "gemini-2.5-flash-preview-tts",
   "gemini-3.1-flash-tts-preview",
   "gemini-2.5-pro-preview-tts",

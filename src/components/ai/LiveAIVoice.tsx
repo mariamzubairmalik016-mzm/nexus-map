@@ -101,6 +101,17 @@ const LIVE_TIMEOUT_MS = 25_000;
 const TTS_TIMEOUT_MS = 2_500;
 
 /**
+ * The native-audio fallback does generate, so it gets a real budget.
+ *
+ * Measured against the live API: first audio arrived between 2.7s and 8.1s
+ * depending on the length of the line and whether the session had warmed up.
+ * Twelve seconds covers the slow end without leaving anyone listening to
+ * silence if the socket faults — Google closes about one turn in five with an
+ * internal 1011, and the browser voice needs to take over promptly when it does.
+ */
+const NATIVE_TIMEOUT_MS = 12_000;
+
+/**
  * How long playback has to actually begin before the audio is abandoned.
  *
  * `audio.play()` can hang forever — verified in the browser against a valid
@@ -118,6 +129,97 @@ const SILENT_WAV =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 const GREETING = voicePhrases.greeting;
+
+/** Native-audio speech comes back as raw 24 kHz mono PCM, as the API defines it. */
+const NATIVE_RATE = 24000;
+
+/** Wraps PCM so the existing <audio> element can play it unchanged. */
+const pcmToWavBlob = (pcm: Uint8Array): Blob => {
+  const header = new DataView(new ArrayBuffer(44));
+  const ascii = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) header.setUint8(offset + i, text.charCodeAt(i));
+  };
+  ascii(0, "RIFF");
+  header.setUint32(4, 36 + pcm.length, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  header.setUint32(16, 16, true);
+  header.setUint16(20, 1, true);
+  header.setUint16(22, 1, true);
+  header.setUint32(24, NATIVE_RATE, true);
+  header.setUint32(28, NATIVE_RATE * 2, true);
+  header.setUint16(32, 2, true);
+  header.setUint16(34, 16, true);
+  ascii(36, "data");
+  header.setUint32(40, pcm.length, true);
+  return new Blob([header.buffer, pcm], { type: "audio/wav" });
+};
+
+/**
+ * The line, spoken by the native-audio model.
+ *
+ * This is what a cache miss falls to now, and it is the reason the assistant
+ * stopped sounding like a robot for most of every day. `/api/ai/tts` is capped
+ * at ten requests per model per day on the free tier — spent by mid-morning,
+ * after which every uncached sentence went to the browser voice. The
+ * native-audio model is metered separately and has no such cap.
+ *
+ * It costs about four seconds, which is why it sits behind the cache rather
+ * than in front of it: warmed lines still play instantly, and only a sentence
+ * nobody has said before waits. Returns null so the caller can drop to the
+ * browser voice exactly as it did before.
+ */
+const speakNatively = async (text: string, signal: AbortSignal): Promise<Blob | null> => {
+  try {
+    const response = await fetch("/api/ai/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speak: text }),
+      signal,
+    });
+    if (!response.ok || !response.body) return null;
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    let buffered = "";
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffered += decoder.decode(value, { stream: true });
+      const lines = buffered.split("\n");
+      buffered = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let event: { type?: string; data?: string };
+        try {
+          event = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (event.type !== "audio" || !event.data) continue;
+        const binary = atob(event.data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        chunks.push(bytes);
+        total += bytes.length;
+      }
+    }
+
+    if (!total) return null;
+    const pcm = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      pcm.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return pcmToWavBlob(pcm);
+  } catch {
+    return null;
+  }
+};
 
 /** Kept identical to the entries in voicePhrases.json so they play from cache. */
 const COULD_NOT_CLICK = "I couldn't find that button on this screen.";
@@ -480,17 +582,31 @@ const LiveAIVoice = () => {
           signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
         });
 
-        // 204 = not cached yet. Speak it ourselves rather than wait. This is
-        // an ordinary outcome, not a failure, so it must NOT pin the session
-        // to the browser voice — the next line may well be a cached one, and
-        // pinning would waste the warmed audio for the rest of the session.
+        /**
+         * 204 = not cached yet.
+         *
+         * This used to go straight to the browser voice, because generating the
+         * line meant `/api/ai/tts`, and that meant a wait followed — once the
+         * day's ten requests were gone — by failure anyway. The native-audio
+         * model has no such cap, so a miss now buys a real voice for about four
+         * seconds instead of a robotic one instantly.
+         *
+         * Still not a failure, so it must NOT pin the session to the browser
+         * voice: the next line may well be cached, and pinning would waste the
+         * warmed audio for the rest of the conversation.
+         */
+        let blob: Blob | null = null;
+
         if (response.status === 204) {
           notCachedRef.current = true;
-          throw new Error("not cached");
+          blob = await speakNatively(text, AbortSignal.timeout(NATIVE_TIMEOUT_MS));
+          if (!blob) throw new Error("not cached");
+        } else if (!response.ok) {
+          throw new Error(`TTS ${response.status}`);
+        } else {
+          blob = await response.blob();
         }
-        if (!response.ok) throw new Error(`TTS ${response.status}`);
 
-        const blob = await response.blob();
         if (!blob.size) throw new Error("empty audio");
         if (!audio) throw new Error("no audio element");
 
