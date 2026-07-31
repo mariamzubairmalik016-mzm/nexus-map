@@ -92,13 +92,16 @@ const MAX_RESTART_FAILURES = 4;
  */
 const LIVE_TIMEOUT_MS = 25_000;
 /**
- * The speech request is now a cache lookup, not a generation — the server
- * answers 204 straight away when a line has not been rendered yet. A couple of
- * seconds is therefore a generous allowance for a round trip, and keeping it
- * tight means even a stalled network costs a moment rather than the nine
- * seconds this used to allow.
+ * Long enough for a hit, short enough that a miss gets out of the way.
+ *
+ * A hit is served from memory or disk and measured at 6–8ms. A miss is not
+ * quick at all — it walks memory, then disk, then a Postgres row, and clocked
+ * 2.9s — but its answer is worth nothing, because the line still has to be
+ * spoken by the model afterwards. Waiting the full lookup only delays the
+ * voice, so this is set far above a hit and well below a miss: the cache gets
+ * its chance, and a line nobody has said before stops paying for the search.
  */
-const TTS_TIMEOUT_MS = 2_500;
+const TTS_TIMEOUT_MS = 1_200;
 
 /**
  * The native-audio fallback does generate, so it gets a real budget.
@@ -563,51 +566,58 @@ const LiveAIVoice = () => {
         window.setTimeout(stopNudge, 3_000 + text.length * 90 + 1_000);
       };
 
+      /**
+       * The cache, and nothing more.
+       *
+       * Its own try/catch, because a failure here is not a failure of Gemini —
+       * and treating it as one is what silenced the assistant. The lookup takes
+       * about 2.9s on a miss (it checks memory, then disk, then a Postgres row),
+       * the request was cut off at 2.5s, and the abort landed in the outer catch
+       * before `notCachedRef` had been set. That pinned the session to the
+       * browser voice permanently: every later line hit the pin and skipped
+       * Gemini entirely. A cache that answered a little too slowly once cost the
+       * real voice for the rest of the conversation.
+       *
+       * Returns null for every miss — 204, timeout, error alike. All three mean
+       * the same thing to the caller: nothing cached, ask the model to speak it.
+       */
+      const fromCache = async (): Promise<Blob | null> => {
+        try {
+          const response = await fetch("/api/ai/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, session: sessionRef.current, cachedOnly: true }),
+            signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
+          });
+          if (response.status !== 200) return null;
+          const blob = await response.blob();
+          return blob.size ? blob : null;
+        } catch {
+          return null;
+        }
+      };
+
       try {
         // Once this session has fallen back, stay fallen back — see
         // `usingBrowserVoiceRef`. Skipping the request also removes the wait.
         if (usingBrowserVoiceRef.current) throw new Error("session pinned to browser voice");
 
-        const response = await fetch("/api/ai/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          // `cachedOnly` is the whole latency fix. Measured on production:
-          // generating a novel line took 4.4s, and after the free tier's
-          // ten-per-day cap every attempt failed several seconds later. Asking
-          // only for audio that already exists means a reply is either
-          // instant Gemini audio or an instant browser voice — never a wait.
-          // The server still renders the line in the background, so repeated
-          // sentences upgrade themselves.
-          body: JSON.stringify({ text, session: sessionRef.current, cachedOnly: true }),
-          signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
-        });
-
         /**
-         * 204 = not cached yet.
+         * Cached audio if there is any, otherwise the model speaks it.
          *
-         * This used to go straight to the browser voice, because generating the
-         * line meant `/api/ai/tts`, and that meant a wait followed — once the
-         * day's ten requests were gone — by failure anyway. The native-audio
-         * model has no such cap, so a miss now buys a real voice for about four
-         * seconds instead of a robotic one instantly.
-         *
-         * Still not a failure, so it must NOT pin the session to the browser
-         * voice: the next line may well be cached, and pinning would waste the
-         * warmed audio for the rest of the conversation.
+         * Only the second of these failing means Gemini is genuinely unavailable
+         * and the browser voice should take over for the session — which is why
+         * `notCachedRef` is set from the cache result rather than from an
+         * exception that could have come from either.
          */
-        let blob: Blob | null = null;
+        let blob = await fromCache();
+        notCachedRef.current = !blob;
 
-        if (response.status === 204) {
-          notCachedRef.current = true;
+        if (!blob) {
           blob = await speakNatively(text, AbortSignal.timeout(NATIVE_TIMEOUT_MS));
-          if (!blob) throw new Error("not cached");
-        } else if (!response.ok) {
-          throw new Error(`TTS ${response.status}`);
-        } else {
-          blob = await response.blob();
         }
 
-        if (!blob.size) throw new Error("empty audio");
+        if (!blob || !blob.size) throw new Error("no audio from cache or the speech model");
         if (!audio) throw new Error("no audio element");
 
         const url = URL.createObjectURL(blob);
@@ -668,10 +678,17 @@ const LiveAIVoice = () => {
           done();
         }, cap * 1000 + 2_000);
       } catch (error) {
-        // Only a genuine failure disables Gemini for the session. A cache miss
-        // is the normal path now and leaves it enabled.
+        /**
+         * Pin only when cached audio existed and still would not play — a fault
+         * in this browser's audio, which the next line will hit too.
+         *
+         * A miss that the model then failed to speak is left unpinned on
+         * purpose: Google closes roughly one turn in five with an internal
+         * 1011, and pinning on that would trade one unlucky sentence for a
+         * robotic voice for the rest of the conversation.
+         */
         if (!notCachedRef.current) {
-          console.warn("[voice] Gemini TTS unavailable, using browser voice:", error);
+          console.warn("[voice] cached audio would not play, using browser voice:", error);
           usingBrowserVoiceRef.current = true;
         }
         notCachedRef.current = false;
